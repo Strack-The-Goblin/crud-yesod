@@ -1,0 +1,4 @@
+database:
+  database: meu_crud_test
+
+auth-dummy-login: true
