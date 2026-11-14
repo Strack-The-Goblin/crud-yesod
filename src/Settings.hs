@@ -11,6 +11,7 @@
 module Settings where
 
 import ClassyPrelude.Yesod
+import qualified Configuration.Dotenv as Dotenv
 import qualified Control.Exception as Exception
 import Data.Aeson                  (Result (..), fromJSON, withObject, (.!=),
                                     (.:?))
@@ -22,6 +23,10 @@ import Network.Wai.Handler.Warp    (HostPreference)
 import Yesod.Default.Config2       (applyEnvValue, configSettingsYml)
 import Yesod.Default.Util          (WidgetFileSettings, widgetFileNoReload,
                                     widgetFileReload)
+
+loadLocalEnv :: IO ()
+loadLocalEnv = Dotenv.loadFile Dotenv.defaultConfig
+    `Dotenv.onMissingFile` pure ()
 
 -- | Runtime settings to configure this application. These settings can be
 -- loaded from various sources: defaults, environment variables, config files,

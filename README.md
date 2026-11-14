@@ -11,31 +11,60 @@ If you have trouble, refer to the [Yesod Quickstart guide](https://www.yesodweb.
 
 The application uses PostgreSQL through Persistent. Install PostgreSQL, including
 the command-line tools, headers and client libraries (`libpq`). On Windows, add
-the installation's `bin` directory to `PATH` and restart the terminal. Check that
-`pg_config --version` works before building; the Haskell driver needs it.
+the installation's `bin` directory to `PATH`. To update the current PowerShell
+session without closing it, run:
+
+```powershell
+$env:Path = 'C:\Program Files\PostgreSQL\18\bin;' + $env:Path
+```
+
+Adjust the version directory to your installation. Check that `pg_config --version`
+works before building; the Haskell driver needs it. This PATH must also be present
+when running `yesod devel`, so GHC can load `libpq.dll` before the application starts.
 
 Using `psql -U postgres`, create a login and separate development and test databases:
 
 ```sql
-CREATE ROLE meu_crud WITH LOGIN;
-\password meu_crud
-CREATE DATABASE meu_crud OWNER meu_crud;
-CREATE DATABASE meu_crud_test OWNER meu_crud;
+CREATE ROLE admin WITH LOGIN;
+\password admin
+CREATE DATABASE banco OWNER admin;
+CREATE DATABASE banco_test OWNER admin;
 ```
 
 The `\password` command prompts for a password without putting it in SQL history.
-Set the same password in the terminal that will run the application or tests.
-For PowerShell, use a masked prompt:
+The role is an application login, not a PostgreSQL superuser. Skip creation if
+the role and databases already exist.
 
-```powershell
-$credential = Get-Credential -UserName meu_crud -Message 'PostgreSQL credentials'
-$env:YESOD_PGPASS = $credential.GetNetworkCredential().Password
+## Local Environment
+
+Configure the `.env` file in the project root. For a fresh checkout, use
+`.env.example` as the template. Set the password locally:
+
+```dotenv
+YESOD_PGHOST=localhost
+YESOD_PGPORT=5432
+YESOD_PGUSER=admin
+YESOD_PGPASS='your_local_password'
+YESOD_PGDATABASE=banco
+YESOD_PGPOOLSIZE=10
+YESOD_HOST=127.0.0.1
+YESOD_PORT=3000
 ```
 
-Connection defaults in `config/settings.yml` are `localhost:5432`, user `meu_crud`
-and database `meu_crud`. Override them with `YESOD_PGHOST`, `YESOD_PGPORT`,
-`YESOD_PGUSER`, `YESOD_PGPASS`, `YESOD_PGDATABASE` and `YESOD_PGPOOLSIZE`.
-Do not commit passwords to configuration files.
+The application and integration tests automatically load `.env` from the current
+working directory before reading their YAML configuration. Run commands from the
+project root. Existing environment variables take precedence over `.env`, which
+takes precedence over YAML defaults. A missing `.env` is allowed for deployments
+that supply environment variables directly. Dotenv is not loaded at compile time.
+
+If an old password is already set in PowerShell, remove that override with
+`Remove-Item Env:YESOD_PGPASS -ErrorAction SilentlyContinue` before starting.
+After changing `.env`, stop and start the application again; no terminal restart
+is needed. `YESOD_PORT` configures Warp; `yesod devel` controls its public proxy
+port separately.
+
+`.env` and `.env.*` are ignored by Git, except `.env.example`, which must never
+contain real credentials. Do not commit passwords to YAML configuration either.
 
 Persistent creates and updates tables when the application starts; the database
 and role must already exist. Existing SQLite data is not transferred automatically.
@@ -52,7 +81,7 @@ As your code changes, your site will be automatically recompiled and redeployed 
 
 ## Tests
 
-Tests always use the `meu_crud_test` database, with the same host, port and
+Tests always use the `banco_test` database from `config/test-settings.yml`, with the same host, port and
 credentials as the application. `YESOD_PGDATABASE` does not override this name.
 Each test deletes application data from this database; never use it for real data.
 When adding models, update the cleanup order in `test/TestImport.hs` as needed.

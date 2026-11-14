@@ -15,3 +15,8 @@ spec = withApp $ do
         it "gives a 200" $ do
             get FaviconR
             statusIs 200
+    describe "GET /api/health" $ do
+        it "returns a hello world JSON response without authentication" $ do
+            get HealthR
+            statusIs 200
+            bodyContains "{\"message\":\"Hello, world!\"}"

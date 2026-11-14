@@ -12,6 +12,7 @@ import Database.Persist      as X hiding (get)
 import Database.Persist.Sql  (SqlPersistM, runSqlPersistMPool)
 import Foundation            as X
 import Model                 as X
+import Settings              (loadLocalEnv)
 import Test.Hspec            as X
 import Yesod.Default.Config2 (useEnv, loadYamlSettings)
 import Yesod.Auth            as X
@@ -30,6 +31,7 @@ runHandler handler = do
 
 withApp :: SpecWith (TestApp App) -> Spec
 withApp = before $ do
+    loadLocalEnv
     settings <- loadYamlSettings
         ["config/test-settings.yml", "config/settings.yml"]
         []

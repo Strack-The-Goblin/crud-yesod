@@ -20,3 +20,6 @@ cabal.sandbox.config
 *~
 \#*
 meu-crud.cabal
+.env
+.env.*
+!.env.example

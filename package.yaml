@@ -26,6 +26,7 @@ dependencies:
 - http-client-tls >=0.3 && <0.4
 - http-conduit >=2.3 && <2.4
 - directory >=1.1 && <1.4
+- dotenv >=0.10 && <0.11
 - warp >=3.0 && <3.4
 - data-default
 - aeson >=1.4 && <2.1

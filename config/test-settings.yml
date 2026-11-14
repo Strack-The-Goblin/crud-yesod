@@ -1,4 +1,4 @@
 database:
-  database: meu_crud_test
+  database: banco_test
 
 auth-dummy-login: true
