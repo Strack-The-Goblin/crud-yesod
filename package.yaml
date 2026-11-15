@@ -83,6 +83,8 @@ tests:
     main: Spec.hs
     source-dirs: test
     ghc-options: -Wall
+    build-tools:
+    - hspec-discover:hspec-discover
     dependencies:
     - meu-crud
     - hspec >=2.0.0

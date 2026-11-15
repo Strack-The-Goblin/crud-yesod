@@ -1,0 +1,8 @@
+cradle:
+  stack:
+    - path: "./src"
+      component: "meu-crud:lib"
+    - path: "./app"
+      component: "meu-crud:exe:meu-crud"
+    - path: "./test"
+      component: "meu-crud:test:meu-crud-test"
