@@ -69,6 +69,37 @@ contain real credentials. Do not commit passwords to YAML configuration either.
 Persistent creates and updates tables when the application starts; the database
 and role must already exist. Existing SQLite data is not transferred automatically.
 
+## Domain Model
+
+The equipment-lending domain uses seven entities, with English names in the code:
+
+| Entity | Purpose |
+| --- | --- |
+| `User` (Usuario) | Existing authentication identity plus name, role, active flag and pickup address |
+| `Category` (Categoria) | Equipment grouping, with a unique name |
+| `Equipment` (Equipamento) | Item owned by a user and assigned to a category; identification is unique per owner |
+| `LoanRequest` (Solicitacao) | Applicant, equipment, requested period, purpose and approval status |
+| `Loan` (Emprestimo) | Checkout, deadline and optional return; one loan per request |
+| `Inspection` (Inspecao) | Condition at checkout/return and responsible user; one inspection of each kind per loan |
+| `Maintenance` (Manutencao) | Repair reason, start and optional completion/result |
+
+`Email` and `Comment` remain as scaffold entities for compatibility; they do not
+count toward the seven domain entities. Foreign keys prevent orphaned records.
+Roles, request states, equipment conditions and inspection kinds use typed enums.
+All domain timestamps use `UTCTime` and PostgreSQL `timestamp with time zone`;
+local-time display will be added with the domain pages.
+
+Startup migrates existing accounts without changing IDs, login identifiers or
+passwords. Their initial name comes from the login, role defaults to `Student`,
+and accounts remain active. Address fields are optional so existing authentication
+continues to work; a complete pickup address must be enforced when publishing
+equipment in the later workflow. Existing-account creation times are initialized
+at migration time, since the old schema did not record them.
+
+This stage adds the data model, not the domain screens or business workflows.
+Date validation, reservation conflicts, authorization and the ViaCEP integration
+will be implemented in their corresponding stages.
+
 ## Development
 
 Start a development server with:

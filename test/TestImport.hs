@@ -46,6 +46,12 @@ withApp = before $ do
 -- spec to run in.
 wipeDB :: App -> IO ()
 wipeDB app = flip runSqlPersistMPool (appConnPool app) $ do
+    deleteWhere ([] :: [Filter Inspection])
+    deleteWhere ([] :: [Filter Maintenance])
+    deleteWhere ([] :: [Filter Loan])
+    deleteWhere ([] :: [Filter LoanRequest])
+    deleteWhere ([] :: [Filter Equipment])
+    deleteWhere ([] :: [Filter Category])
     deleteWhere ([] :: [Filter Comment])
     deleteWhere ([] :: [Filter Email])
     deleteWhere ([] :: [Filter User])
@@ -62,14 +68,13 @@ authenticateAs (Entity _ u) = do
 
 -- | Create a user with a related email to exercise foreign-key cleanup.
 createUser :: Text -> YesodExample App (Entity User)
-createUser ident = runDB $ do
-    user <- insertEntity User
-        { userIdent = ident
-        , userPassword = Nothing
-        }
-    _ <- insert Email
-        { emailEmail = ident
-        , emailUserId = Just $ entityKey user
-        , emailVerkey = Nothing
-        }
-    return user
+createUser ident = do
+    createdAt <- liftIO getCurrentTime
+    runDB $ do
+        user <- insertEntity $ newUser ident createdAt
+        _ <- insert Email
+            { emailEmail = ident
+            , emailUserId = Just $ entityKey user
+            , emailVerkey = Nothing
+            }
+        return user

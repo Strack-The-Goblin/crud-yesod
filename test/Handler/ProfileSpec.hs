@@ -26,3 +26,19 @@ spec = withApp $ do
             get ProfileR
             let (Entity _ user) = userEntity
             htmlAnyContain ".username" . unpack $ userIdent user
+
+        it "initializes a domain profile when authentication creates an account" $ do
+            request $ do
+                setMethod "POST"
+                addPostParam "ident" "new-account"
+                setUrl $ AuthR $ PluginR "dummy" []
+            statusIs 303
+            account <- runDB $ getBy $ UniqueUser "new-account"
+            case account of
+                Nothing -> liftIO $ expectationFailure "Authentication did not create an account"
+                Just (Entity _ user) -> liftIO $ do
+                    userName user `shouldBe` "new-account"
+                    userRole user `shouldBe` Student
+                    userActive user `shouldBe` True
+                    userPassword user `shouldBe` Nothing
+                    userPostalCode user `shouldBe` Nothing

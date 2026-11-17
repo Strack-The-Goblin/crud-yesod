@@ -4,6 +4,17 @@
 User
     ident Text
     password Text Maybe
+    name Text default=''
+    role UserRole default='Student'
+    active Bool default=true
+    postalCode Text Maybe
+    street Text Maybe
+    neighborhood Text Maybe
+    city Text Maybe
+    state Text Maybe
+    addressNumber Text Maybe
+    addressComplement Text Maybe
+    createdAt UTCTime default=CURRENT_TIMESTAMP
     UniqueUser ident
     deriving Typeable
 Email
@@ -16,3 +27,58 @@ Comment json -- Adding "json" causes ToJSON and FromJSON instances to be derived
     userId UserId Maybe
     deriving Eq
     deriving Show
+
+Category
+    name Text
+    description Text
+    UniqueCategoryName name
+    deriving Eq Show
+
+Equipment
+    name Text
+    description Text
+    identification Text
+    condition EquipmentCondition
+    active Bool
+    ownerId UserId
+    categoryId CategoryId
+    createdAt UTCTime
+    UniqueEquipmentIdentification ownerId identification
+    deriving Eq Show
+
+LoanRequest
+    equipmentId EquipmentId
+    requesterId UserId
+    startsAt UTCTime
+    endsAt UTCTime
+    purpose Text
+    status LoanRequestStatus
+    rejectionReason Text Maybe
+    createdAt UTCTime
+    deriving Eq Show
+
+Loan
+    sourceRequestId LoanRequestId
+    checkedOutAt UTCTime
+    dueAt UTCTime
+    returnedAt UTCTime Maybe
+    UniqueLoanRequest sourceRequestId
+    deriving Eq Show
+
+Inspection
+    loanId LoanId
+    inspectorId UserId
+    kind InspectionKind
+    condition EquipmentCondition
+    notes Text
+    performedAt UTCTime
+    UniqueLoanInspection loanId kind
+    deriving Eq Show
+
+Maintenance
+    equipmentId EquipmentId
+    reason Text
+    startedAt UTCTime
+    finishedAt UTCTime Maybe
+    result Text Maybe
+    deriving Eq Show
