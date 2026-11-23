@@ -94,7 +94,7 @@ instance FromJSON AppSettings where
         appCopyright              <- o .:  "copyright"
         appAnalytics              <- o .:? "analytics"
 
-        appAuthDummyLogin         <- o .:? "auth-dummy-login"      .!= dev
+        appAuthDummyLogin         <- o .:? "auth-dummy-login"      .!= False
 
         return AppSettings {..}
 

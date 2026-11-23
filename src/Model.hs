@@ -58,6 +58,15 @@ newUser ident createdAt = User
     , userCreatedAt = createdAt
     }
 
+promoteUserToAdministrator :: MonadIO m => Text -> ReaderT SqlBackend m Bool
+promoteUserToAdministrator ident = do
+    account <- getBy $ UniqueUser ident
+    case account of
+        Just (Entity uid user) | userActive user && isJust (userPassword user) -> do
+            update uid [UserRole =. Administrator]
+            pure True
+        _ -> pure False
+
 migrateDatabase :: MonadIO m => ReaderT SqlBackend m ()
 migrateDatabase = do
     runMigration migrateAll

@@ -7,6 +7,8 @@
 {-# LANGUAGE ExplicitForAll #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module Foundation where
 
@@ -20,12 +22,14 @@ import Control.Monad.Logger (LogSource)
 -- Used only when in "auth-dummy-login" setting is enabled.
 import Yesod.Auth.Dummy
 
-import Yesod.Auth.OpenId    (authOpenId, IdentifierType (Claimed))
 import Yesod.Default.Util   (addStaticContentExternal)
 import Yesod.Core.Types     (Logger)
 import qualified Yesod.Core.Unsafe as Unsafe
 import qualified Data.CaseInsensitive as CI
 import qualified Data.Text.Encoding as TE
+import qualified Data.Text as T
+import qualified Yesod.Auth.Message as AuthMessage
+import Password (verifyUserPassword)
 
 -- | The foundation datatype for your application. This can be a good place to
 -- keep settings and values requiring initialization before your application
@@ -122,6 +126,11 @@ instance Yesod App where
                     , menuItemAccessCallback = isJust muser
                     }
                 , NavbarRight $ MenuItem
+                    { menuItemLabel = "Criar conta"
+                    , menuItemRoute = RegisterR
+                    , menuItemAccessCallback = isNothing muser
+                    }
+                , NavbarRight $ MenuItem
                     { menuItemLabel = "Login"
                     , menuItemRoute = AuthR LoginR
                     , menuItemAccessCallback = isNothing muser
@@ -163,6 +172,7 @@ instance Yesod App where
         -> Handler AuthResult
     -- Routes not requiring authentication.
     isAuthorized (AuthR _) _ = return Authorized
+    isAuthorized RegisterR _ = return Authorized
     isAuthorized CommentR _ = return Authorized
     isAuthorized HomeR _ = return Authorized
     isAuthorized FaviconR _ = return Authorized
@@ -201,11 +211,13 @@ instance Yesod App where
     -- What messages should be logged. The following includes all messages when
     -- in development, and warnings and errors in production.
     shouldLogIO :: App -> LogSource -> LogLevel -> IO Bool
-    shouldLogIO app _source level =
+    shouldLogIO app source level =
+        -- Persistent debug messages include bound values such as password hashes.
         return $
-        appShouldLogAll (appSettings app)
+        (source /= "SQL" || level /= LevelDebug)
+        && (appShouldLogAll (appSettings app)
             || level == LevelWarn
-            || level == LevelError
+            || level == LevelError)
 
     makeLogger :: App -> IO Logger
     makeLogger = return . appLogger
@@ -221,6 +233,7 @@ instance YesodBreadcrumbs App where
     breadcrumb HomeR = return ("Home", Nothing)
     breadcrumb (AuthR _) = return ("Login", Just HomeR)
     breadcrumb ProfileR = return ("Profile", Just HomeR)
+    breadcrumb RegisterR = return ("Criar conta", Just HomeR)
     breadcrumb  _ = return ("home", Nothing)
 
 -- How to run database actions.
@@ -250,29 +263,97 @@ instance YesodAuth App where
 
     authenticate :: (MonadHandler m, HandlerSite m ~ App)
                  => Creds App -> m (AuthenticationResult App)
-    authenticate creds = liftHandler $ runDB $ do
-        x <- getBy $ UniqueUser $ credsIdent creds
-        case x of
-            Just (Entity uid _) -> return $ Authenticated uid
-            Nothing -> do
-                createdAt <- liftIO getCurrentTime
-                Authenticated <$> insert (newUser (credsIdent creds) createdAt)
+    authenticate creds = liftHandler $ do
+        app <- getYesod
+        let plugin = credsPlugin creds
+            dummyAllowed = plugin == "dummy" && appAuthDummyLogin (appSettings app)
+            invalid = UserError AuthMessage.InvalidLogin
+        runDB $ do
+            account <- getBy $ UniqueUser $ credsIdent creds
+            case account of
+                Just (Entity uid user)
+                    | not (userActive user) -> pure invalid
+                    | plugin == "password"
+                    , Just password <- lookup "password" (credsExtra creds)
+                    , T.length password <= 128
+                    , verifyUserPassword user password -> pure $ Authenticated uid
+                    | dummyAllowed -> pure $ Authenticated uid
+                    | otherwise -> pure invalid
+                Nothing
+                    | dummyAllowed -> do
+                        createdAt <- liftIO getCurrentTime
+                        let user = newUser (credsIdent creds) createdAt
+                        inserted <- insertUnique user
+                        case inserted of
+                            Just uid -> pure $ Authenticated uid
+                            Nothing -> pure invalid
+                    | otherwise -> pure invalid
 
-    -- You can add other plugins like Google Email, email or OAuth here
     authPlugins :: App -> [AuthPlugin App]
-    authPlugins app = [authOpenId Claimed []] ++ extraAuthPlugins
+    authPlugins app = [authPassword] ++ extraAuthPlugins
         -- Enable authDummy login if enabled.
         where extraAuthPlugins = [authDummy | appAuthDummyLogin $ appSettings app]
 
 -- | Access function to determine if a user is logged in.
 isAuthenticated :: Handler AuthResult
 isAuthenticated = do
-    muid <- maybeAuthId
+    muid <- maybeAuthPair
     return $ case muid of
         Nothing -> Unauthorized "You must login to access this page"
         Just _ -> Authorized
 
-instance YesodAuthPersist App
+requireActiveUser :: Handler (Entity User)
+requireActiveUser = do
+    (uid, user) <- requireAuthPair
+    unless (userActive user) $ permissionDenied "Conta inativa."
+    pure $ Entity uid user
+
+requireAdministrator :: Handler (Entity User)
+requireAdministrator = do
+    account@(Entity _ user) <- requireActiveUser
+    unless (userRole user == Administrator) $ permissionDenied "Acesso exclusivo de administrador."
+    pure account
+
+requireOwner :: UserId -> Handler (Entity User)
+requireOwner ownerId = do
+    account@(Entity uid _) <- requireActiveUser
+    unless (uid == ownerId) $ permissionDenied "Acesso exclusivo do proprietario."
+    pure account
+
+instance YesodAuthPersist App where
+    getAuthEntity uid = liftHandler $ do
+        user <- runDB $ get uid
+        pure $ user >>= \account -> if userActive account then Just account else Nothing
+
+authPassword :: AuthPlugin App
+authPassword = AuthPlugin "password" dispatch loginWidget
+  where
+    dispatch :: Text -> [Text] -> AuthHandler App TypedContent
+    dispatch "POST" [] = do
+        checkCsrfHeaderOrParam defaultCsrfHeaderName defaultCsrfParamName
+        (ident, password) <- runInputPost $ (,)
+            <$> ireq textField "username"
+            <*> ireq passwordField "password"
+        setCredsRedirect $ Creds "password" (T.strip ident) [("password", password)]
+    dispatch _ _ = notFound
+    loginWidget :: (Route Auth -> Route App) -> Widget
+    loginWidget toParent = do
+        token <- reqToken <$> handlerToWidget getRequest
+        [whamlet|
+            <h2>Entrar com senha
+            <form method=post action=@{toParent $ PluginR "password" []}>
+                $maybe value <- token
+                    <input type=hidden name=#{defaultCsrfParamName} value=#{value}>
+                <div .form-group>
+                    <label for=login-username>Login
+                    <input #login-username .form-control name=username required autocomplete=username>
+                <div .form-group>
+                    <label for=login-password>Senha
+                    <input #login-password .form-control type=password name=password required maxlength=128 autocomplete=current-password>
+                <button .btn.btn-primary type=submit>Entrar
+            <p>
+                <a href=@{RegisterR}>Criar conta
+        |]
 
 -- This instance is required to use forms. You can modify renderMessage to
 -- achieve customized and internationalized form validation messages.

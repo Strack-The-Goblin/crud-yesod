@@ -12,4 +12,5 @@
 
 /comments CommentR POST
 
-/profile ProfileR GET
+/register RegisterR GET POST
+/profile ProfileR GET POST

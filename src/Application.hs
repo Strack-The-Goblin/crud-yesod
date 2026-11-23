@@ -26,7 +26,7 @@ import Database.Persist.Postgresql          (createPostgresqlPool, runSqlPool,
 import Import
 import Language.Haskell.TH.Syntax           (qLocation)
 import Network.HTTP.Client.TLS              (getGlobalManager)
-import Network.Wai (Middleware)
+import Network.Wai (Middleware, pathInfo)
 import Network.Wai.Handler.Warp             (Settings, defaultSettings,
                                              defaultShouldDisplayException,
                                              runSettings, setHost,
@@ -37,6 +37,7 @@ import Network.Wai.Middleware.RequestLogger (Destination (Logger),
                                              mkRequestLogger, outputFormat)
 import System.Log.FastLogger                (defaultBufSize, newStdoutLoggerSet,
                                              toLogStr)
+import qualified System.Environment as Environment
 
 -- Import all relevant handler modules here.
 -- Don't forget to add new modules to your cabal file!
@@ -44,6 +45,7 @@ import Handler.Common
 import Handler.Home
 import Handler.Comment
 import Handler.Profile
+import Handler.Register
 
 -- This line actually creates our YesodDispatch instance. It is the second half
 -- of the call to mkYesodData which occurs in Foundation.hs. Please see the
@@ -97,8 +99,8 @@ makeApplication foundation = do
     return $ logWare $ defaultMiddlewaresNoLogging appPlain
 
 makeLogWare :: App -> IO Middleware
-makeLogWare foundation =
-    mkRequestLogger def
+makeLogWare foundation = do
+    regularLogger <- mkRequestLogger def
         { outputFormat =
             if appDetailedRequestLogging $ appSettings foundation
                 then Detailed True
@@ -108,6 +110,17 @@ makeLogWare foundation =
                             else FromSocket)
         , destination = Logger $ loggerSet $ appLogger foundation
         }
+    privateLogger <- mkRequestLogger def
+        { outputFormat = Apache FromSocket
+        , destination = Logger $ loggerSet $ appLogger foundation
+        }
+    -- Authentication and profile bodies contain credentials or private addresses.
+    pure $ \application request respond ->
+        case pathInfo request of
+            "auth" : _ -> privateLogger application request respond
+            ["register"] -> privateLogger application request respond
+            ["profile"] -> privateLogger application request respond
+            _ -> regularLogger application request respond
 
 
 -- | Warp settings for the given foundation value.
@@ -146,6 +159,22 @@ develMain = develMainHelper getApplicationDev
 -- | The @main@ function for an executable running this site.
 appMain :: IO ()
 appMain = do
+    args <- Environment.getArgs
+    case args of
+        ["promote-admin", ident] -> promoteAdministrator $ pack ident
+        _ -> runApp
+
+promoteAdministrator :: Text -> IO ()
+promoteAdministrator ident = do
+    settings <- getAppSettings
+    foundation <- makeFoundation settings
+    promoted <- runSqlPool (promoteUserToAdministrator ident) (appConnPool foundation)
+    if promoted
+        then putStrLn ("Administrador habilitado." :: Text)
+        else ioError $ userError "Informe o login exato de uma conta ativa cadastrada com senha."
+
+runApp :: IO ()
+runApp = do
     loadLocalEnv
     -- Get the settings from all relevant sources
     settings <- loadYamlSettingsArgs

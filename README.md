@@ -96,9 +96,53 @@ continues to work; a complete pickup address must be enforced when publishing
 equipment in the later workflow. Existing-account creation times are initialized
 at migration time, since the old schema did not record them.
 
-This stage adds the data model, not the domain screens or business workflows.
-Date validation, reservation conflicts, authorization and the ViaCEP integration
+The data model and account/profile workflow are implemented. Equipment screens,
+loan workflows, period validation, reservation conflicts and the ViaCEP integration
 will be implemented in their corresponding stages.
+
+## Accounts and Permissions
+
+Use **Criar conta** (`/register`) to register and **Login** (`/auth/login`) to sign in.
+Logins are unique and case-sensitive, with 3 to 100 ASCII letters, digits or
+`._@-`. Passwords require 12 to 128 characters and confirmation. They are stored
+as salted, iterated hashes using Yesod's password store (strength 19), never as
+plaintext; Unicode passwords use UTF-8.
+
+Public registration always creates an active `Student`. Neither registration nor
+profile editing accepts changes to the account role, active flag or another user.
+**Profile** (`/profile`) shows the current account and allows editing its name and
+manual address. Address fields remain optional until equipment publication; when
+provided, CEP must have 8 digits and UF must be a valid uppercase Brazilian state.
+The profile does not change the login or password.
+
+Protected handlers share checks for active users, administrators and owners.
+Being an administrator does not bypass an owner-only operation. Inactive users
+cannot sign in or continue accessing protected pages with an existing session.
+Forms and password login validate CSRF tokens; logout uses Yesod's protected POST
+flow. Authentication/profile request bodies and SQL debug values are excluded
+from application logs.
+
+Legacy OpenID/Yahoo login has been removed; only local password login is offered.
+Accounts without a password cannot sign in using only their login, and registering
+again cannot overwrite an existing account. Dummy authentication is disabled by
+default, including in development; only the test configuration enables it.
+Never enable `auth-dummy-login` on an instance with real data.
+
+### Creating an Administrator
+
+First register a normal account through the application. An operator with local
+access to the project and configured database can promote that account:
+
+```powershell
+stack build --flag meu-crud:dev
+stack exec -- meu-crud promote-admin LOGIN
+```
+
+Replace `LOGIN` with the exact existing login. This command uses the same local
+environment/database configuration as the server, requires an active account with
+a password, and fails explicitly otherwise. It is safe to repeat and exposes no
+public promotion route. Sign in with that account to see **Administrador** in the
+profile. Category administration screens belong to a later stage.
 
 ## Development
 

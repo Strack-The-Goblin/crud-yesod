@@ -1,10 +1,14 @@
-<div .ui.container>
-
-    <h1>
-      Access granted!
-
-    <p>
-      This page is protected and access is allowed only for authenticated users.
-
-    <p>
-      Your data is protected with us <strong><span class="username">#{userIdent user}</span></strong>!
+<h1>Meu perfil
+<p>
+    Login:
+    <strong .username>#{userIdent user}
+<p>
+    Perfil:
+    $if userRole user == Administrator
+        <span .user-role>Administrador
+    $else
+        <span .user-role>Aluno
+<p>O endereco e opcional neste momento, mas sera exigido para publicar equipamentos.
+<form method=post action=@{ProfileR} enctype=#{formEnctype}>
+    ^{formWidget}
+    <button .btn.btn-primary type=submit>Salvar perfil

@@ -12,7 +12,8 @@ import Database.Persist      as X hiding (get)
 import Database.Persist.Sql  (SqlPersistM, runSqlPersistMPool)
 import Foundation            as X
 import Model                 as X
-import Settings              (loadLocalEnv)
+import Settings              (AppSettings, loadLocalEnv)
+import Password              (hashPassword)
 import Test.Hspec            as X
 import Yesod.Default.Config2 (useEnv, loadYamlSettings)
 import Yesod.Auth            as X
@@ -30,13 +31,16 @@ runHandler handler = do
     fakeHandlerGetLogger appLogger app handler
 
 withApp :: SpecWith (TestApp App) -> Spec
-withApp = before $ do
+withApp = withAppSettings id
+
+withAppSettings :: (AppSettings -> AppSettings) -> SpecWith (TestApp App) -> Spec
+withAppSettings configure = before $ do
     loadLocalEnv
     settings <- loadYamlSettings
         ["config/test-settings.yml", "config/settings.yml"]
         []
         useEnv
-    foundation <- makeFoundation settings
+    foundation <- makeFoundation $ configure settings
     wipeDB foundation
     logWare <- liftIO $ makeLogWare foundation
     return (foundation, logWare)
@@ -78,3 +82,20 @@ createUser ident = do
             , emailVerkey = Nothing
             }
         return user
+
+createPasswordUser :: Text -> Text -> YesodExample App (Entity User)
+createPasswordUser ident password = do
+    hashed <- hashPassword password
+    Entity uid user <- createUser ident
+    runDB $ update uid [UserPassword =. Just hashed]
+    pure $ Entity uid $ user { userPassword = Just hashed }
+
+loginWithPassword :: Text -> Text -> YesodExample App ()
+loginWithPassword ident password = do
+    get $ AuthR LoginR
+    request $ do
+        setMethod "POST"
+        setUrl $ AuthR $ PluginR "password" []
+        addToken
+        addPostParam "username" ident
+        addPostParam "password" password
