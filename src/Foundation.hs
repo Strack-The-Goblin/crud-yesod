@@ -125,6 +125,13 @@ instance Yesod App where
                     , menuItemRoute = ProfileR
                     , menuItemAccessCallback = isJust muser
                     }
+                , NavbarLeft $ MenuItem "Catalogo" CatalogR (isJust muser)
+                , NavbarLeft $ MenuItem "Meus equipamentos" MyEquipmentR (isJust muser)
+                , NavbarLeft $ MenuItem "Minhas solicitacoes" RequestListR (isJust muser)
+                , NavbarLeft $ MenuItem "Recebidas" ReceivedRequestsR (isJust muser)
+                , NavbarLeft $ MenuItem "Emprestimos" LoansR (isJust muser)
+                , NavbarLeft $ MenuItem "Categorias" CategoriesR
+                    (maybe False ((== Administrator) . userRole . snd) muser)
                 , NavbarRight $ MenuItem
                     { menuItemLabel = "Criar conta"
                     , menuItemRoute = RegisterR
@@ -183,6 +190,7 @@ instance Yesod App where
     -- the profile route requires that the user is authenticated, so we
     -- delegate to that function
     isAuthorized ProfileR _ = isAuthenticated
+    isAuthorized _ _ = isAuthenticated
 
     -- This function creates static content files in the static folder
     -- and names them based on a hash of their content. This allows

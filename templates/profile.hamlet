@@ -9,6 +9,12 @@
     $else
         <span .user-role>Aluno
 <p>O endereco e opcional neste momento, mas sera exigido para publicar equipamentos.
-<form method=post action=@{ProfileR} enctype=#{formEnctype}>
+<h2>Consultar ViaCEP
+<form method=post action=@{ProfileCEPR} enctype=#{cepEnctype}>
+    ^{cepWidget}
+    <button .btn.btn-default type=submit>Consultar CEP
+<p>Consulta nao salva automaticamente. Confira o endereco abaixo e complete numero e campos ausentes.
+<p>Preenchimento manual: em caso de indisponibilidade, informe o endereco nos mesmos campos e confirme.
+<form #profile-form method=post action=@{ProfileR} enctype=#{formEnctype}>
     ^{formWidget}
-    <button .btn.btn-primary type=submit>Salvar perfil
+    <button .btn.btn-primary type=submit>Confirmar e salvar perfil

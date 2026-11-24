@@ -77,6 +77,7 @@ spec = withAppSettings (\settings -> settings { appAuthDummyLogin = False }) $ d
                 get ProfileR
                 statusIs 200
                 htmlAnyContain ".username" $ unpack ident
+                get $ AuthR LogoutR
                 request $ do
                     setMethod "POST"
                     setUrl $ AuthR LogoutR

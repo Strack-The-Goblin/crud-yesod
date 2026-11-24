@@ -87,7 +87,7 @@ The equipment-lending domain uses seven entities, with English names in the code
 count toward the seven domain entities. Foreign keys prevent orphaned records.
 Roles, request states, equipment conditions and inspection kinds use typed enums.
 All domain timestamps use `UTCTime` and PostgreSQL `timestamp with time zone`;
-local-time display will be added with the domain pages.
+Domain pages display local times in the explicit UTC-03:00 timezone.
 
 Startup migrates existing accounts without changing IDs, login identifiers or
 passwords. Their initial name comes from the login, role defaults to `Student`,
@@ -96,9 +96,10 @@ continues to work; a complete pickup address must be enforced when publishing
 equipment in the later workflow. Existing-account creation times are initialized
 at migration time, since the old schema did not record them.
 
-The data model and account/profile workflow are implemented. Equipment screens,
-loan workflows, period validation, reservation conflicts and the ViaCEP integration
-will be implemented in their corresponding stages.
+The data model, accounts, ViaCEP profile lookup, equipment catalog, requests,
+reservations, maintenance and checkout with initial inspection are implemented.
+Return/final inspection, damage-triggered maintenance and account/equipment
+deactivation are the next stages; checkout currently leaves the loan open.
 
 ## Accounts and Permissions
 
@@ -111,7 +112,7 @@ plaintext; Unicode passwords use UTF-8.
 Public registration always creates an active `Student`. Neither registration nor
 profile editing accepts changes to the account role, active flag or another user.
 **Profile** (`/profile`) shows the current account and allows editing its name and
-manual address. Address fields remain optional until equipment publication; when
+pickup address. Address fields remain optional until equipment publication; when
 provided, CEP must have 8 digits and UF must be a valid uppercase Brazilian state.
 The profile does not change the login or password.
 
@@ -142,7 +143,62 @@ Replace `LOGIN` with the exact existing login. This command uses the same local
 environment/database configuration as the server, requires an active account with
 a password, and fails explicitly otherwise. It is safe to repeat and exposes no
 public promotion route. Sign in with that account to see **Administrador** in the
-profile. Category administration screens belong to a later stage.
+profile and access category administration.
+
+## Equipment Lending Workflow
+
+1. An administrator creates categories at `/categories`. Used categories cannot
+   be deleted; duplicate names are rejected.
+2. An owner completes the pickup address and publishes equipment at
+   `/publish-equipment`. `/my-equipment` provides editing and deletion of items
+   without requests or maintenance history. Identification is unique per owner.
+3. Authenticated users browse `/catalog`, with literal name/category filters and
+   deterministic pagination (20 items per page). Details show approved periods;
+   displayed availability is informational and is rechecked on every mutation.
+4. Another student requests a future period using `YYYY-MM-DD HH:MM` in UTC-03:00.
+   `/requests` and `/received-requests` list outgoing and incoming requests.
+   Only the requester can edit/delete a pending request. Cancellation preserves
+   history; approval and refusal belong exclusively to the owner.
+5. Approval reserves a half-open interval `[start, end)`. Overlaps, inactive
+   participants/equipment, open loans and open maintenance block approval.
+   The requester sees the full pickup address only after approval/checkout.
+   The owner's address is locked while an approved request or open loan exists.
+6. Owners open, edit and complete maintenance from equipment details. Opening
+   requires no approved reservations, open loan or other open maintenance.
+   Completion requires a result and retains the record.
+7. During an approved period, the owner confirms checkout and the initial
+   condition/notes. Damaged condition requires notes. This atomically creates
+   one loan and one initial inspection and marks the request as collected.
+   `/loans` shows participant loans, deadlines and inspection history.
+
+All mutations use POST and Yesod form CSRF protection. Delete/cancel buttons ask
+for confirmation. Equipment operations lock participant user rows in ID order,
+then the equipment row inside a PostgreSQL transaction. This coordinates
+approval, cancellation, maintenance and checkout, including concurrent and
+duplicate submissions. Profile edits use the same user lock. Failed composite
+operations roll back completely; administrators cannot perform owner mutations
+on someone else's equipment.
+
+### ViaCEP Integration
+
+On `/profile`, enter a CEP and select **Consultar CEP**. The backend removes
+spaces/hyphens, validates eight ASCII digits, and calls only
+`https://viacep.com.br/ws/{cep}/json/`, with a five-second total/response timeout and
+redirects disabled. Street, neighborhood, city and state fill the profile form;
+review them, supply the number/complement or missing fields, then select
+**Confirmar e salvar perfil**. Lookup alone never changes the saved address.
+
+Invalid/nonexistent CEPs and HTTP, timeout or JSON failures show explicit errors
+without overwriting the previous profile. Manual entry remains available and is
+identified in the interface. Automated tests simulate responses rather than
+depending on ViaCEP uptime. A public CEP such as `01310-100` can be used for the
+real integration demonstration; do not use personal data.
+
+Workflow tests cover CRUD/authorization/CSRF, address privacy and locking,
+half-open reservation limits, overlapping concurrent approvals, maintenance
+conflicts, concurrent checkout, and rollback after an inspection insert failure.
+The test executable uses `-threaded` so PostgreSQL concurrency tests can progress
+while another connection is waiting for a row lock.
 
 ## Development
 

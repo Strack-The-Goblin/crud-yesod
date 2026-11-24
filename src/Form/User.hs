@@ -5,6 +5,7 @@ module Form.User where
 import Import
 import qualified Data.Text as T
 import Data.Char (isAscii, isAlphaNum)
+import ViaCEP (normalizePostalCode)
 
 data Registration = Registration Text Text Text Text
 
@@ -56,9 +57,7 @@ profileForm user = renderDivs $ ProfileData
     <*> aopt (nonBlankField 30) (fieldSettings "Numero" "addressNumber") (Just $ userAddressNumber user)
     <*> aopt (nonBlankField 200) (fieldSettings "Complemento" "addressComplement") (Just $ userAddressComplement user)
   where
-    postalCodeField = checkBool
-        (\value -> T.length value == 8 && T.all (\c -> c >= '0' && c <= '9') value)
-        ("Informe um CEP com exatamente 8 digitos." :: Text) (nonBlankField 8)
+    postalCodeField = checkMMap (pure . normalizePostalCode) id textField
     stateField = checkBool (`elem` states) ("Informe uma UF brasileira valida em maiusculas." :: Text) (nonBlankField 2)
     states = ["AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS",
               "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO"]

@@ -14,3 +14,31 @@
 
 /register RegisterR GET POST
 /profile ProfileR GET POST
+/profile/cep ProfileCEPR POST
+
+/categories CategoriesR GET POST
+/categories/#CategoryId/edit CategoryEditR GET POST
+/categories/#CategoryId/delete CategoryDeleteR POST
+
+/catalog CatalogR GET
+/my-equipment MyEquipmentR GET
+/publish-equipment EquipmentNewR GET POST
+/equipment/#EquipmentId EquipmentR GET
+/equipment/#EquipmentId/edit EquipmentEditR GET POST
+/equipment/#EquipmentId/delete EquipmentDeleteR POST
+/equipment/#EquipmentId/request RequestNewR GET POST
+/requests RequestListR GET
+/received-requests ReceivedRequestsR GET
+/requests/#LoanRequestId RequestR GET
+/requests/#LoanRequestId/edit RequestEditR GET POST
+/requests/#LoanRequestId/delete RequestDeleteR POST
+/requests/#LoanRequestId/cancel RequestCancelR POST
+/requests/#LoanRequestId/approve RequestApproveR POST
+/requests/#LoanRequestId/reject RequestRejectR POST
+/equipment/#EquipmentId/maintenance EquipmentMaintenanceR GET POST
+/maintenance/#MaintenanceId MaintenanceR GET
+/maintenance/#MaintenanceId/edit MaintenanceEditR POST
+/maintenance/#MaintenanceId/finish MaintenanceFinishR POST
+/requests/#LoanRequestId/checkout CheckoutR GET POST
+/loans LoansR GET
+/loans/#LoanId LoanR GET

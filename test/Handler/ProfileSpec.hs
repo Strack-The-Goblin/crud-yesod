@@ -54,7 +54,7 @@ spec = withApp $ do
             request $ do
                 setMethod "POST"
                 setUrl ProfileR
-                addToken
+                addToken_ "#profile-form"
                 addPostParam "name" "Alice atualizada"
                 addPostParam "postalCode" "01310100"
                 addPostParam "street" "Avenida Paulista"
@@ -97,7 +97,7 @@ spec = withApp $ do
                 request $ do
                     setMethod "POST"
                     setUrl ProfileR
-                    addToken
+                    addToken_ "#profile-form"
                     mapM_ (uncurry addPostParam) fields
                 statusIs 200
                 user <- runDB $ getJust uid
@@ -118,7 +118,7 @@ spec = withApp $ do
             request $ do
                 setMethod "POST"
                 setUrl ProfileR
-                addToken
+                addToken_ "#profile-form"
                 addPostParam "name" "Alice"
             statusIs 303
             user <- runDB $ getJust uid

@@ -25,6 +25,7 @@ dependencies:
 - yaml >=0.11 && <0.12
 - http-client-tls >=0.3 && <0.4
 - http-conduit >=2.3 && <2.4
+- http-types
 - directory >=1.1 && <1.4
 - dotenv >=0.10 && <0.11
 - warp >=3.0 && <3.4
@@ -82,7 +83,9 @@ tests:
   meu-crud-test:
     main: Spec.hs
     source-dirs: test
-    ghc-options: -Wall
+    ghc-options:
+    - -Wall
+    - -threaded
     build-tools:
     - hspec-discover:hspec-discover
     dependencies:

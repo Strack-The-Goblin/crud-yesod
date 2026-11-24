@@ -46,6 +46,10 @@ import Handler.Home
 import Handler.Comment
 import Handler.Profile
 import Handler.Register
+import Handler.Equipment
+import Handler.LoanRequest
+import Handler.Maintenance
+import Handler.Loan
 
 -- This line actually creates our YesodDispatch instance. It is the second half
 -- of the call to mkYesodData which occurs in Foundation.hs. Please see the
@@ -114,12 +118,19 @@ makeLogWare foundation = do
         { outputFormat = Apache FromSocket
         , destination = Logger $ loggerSet $ appLogger foundation
         }
-    -- Authentication and profile bodies contain credentials or private addresses.
+    -- Account and lending forms contain credentials, private addresses or CSRF tokens.
     pure $ \application request respond ->
         case pathInfo request of
             "auth" : _ -> privateLogger application request respond
             ["register"] -> privateLogger application request respond
-            ["profile"] -> privateLogger application request respond
+            "profile" : _ -> privateLogger application request respond
+            "categories" : _ -> privateLogger application request respond
+            "equipment" : _ -> privateLogger application request respond
+            "requests" : _ -> privateLogger application request respond
+            "maintenance" : _ -> privateLogger application request respond
+            "loans" : _ -> privateLogger application request respond
+            [route] | route `elem` ["catalog", "my-equipment", "publish-equipment", "received-requests"] ->
+                privateLogger application request respond
             _ -> regularLogger application request respond
 
 
