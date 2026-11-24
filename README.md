@@ -78,6 +78,46 @@ contain real credentials. Do not commit passwords to YAML configuration either.
 Persistent creates and updates tables when the application starts; the database
 and role must already exist. Existing SQLite data is not transferred automatically.
 
+## Docker / Render
+
+O [Dockerfile](Dockerfile) compila com o snapshot do Stack em uma etapa separada
+e executa como usuario sem privilegios, sem modo dev nem login dummy.
+A [.dockerignore](.dockerignore) exclui ambiente local, chave de sessao, banco
+de testes e caches. O primeiro build baixa GHC/dependencias e pode ser demorado.
+
+No Render, crie um **Web Service / Docker**, usando a raiz deste repositorio e
+o Dockerfile padrao. Crie o PostgreSQL na mesma regiao e configure no servico:
+
+- `YESOD_PGHOST`: hostname interno do PostgreSQL.
+- `YESOD_PGPORT`: `5432`.
+- `YESOD_PGUSER`, `YESOD_PGPASS`, `YESOD_PGDATABASE`: valores do banco no Render,
+  nao as credenciais locais. Uma variavel `DATABASE_URL` sozinha nao e consumida.
+- `YESOD_PGPOOLSIZE`: por exemplo `5`, respeitando o limite de conexoes do banco.
+
+Configure o **Health Check Path** como `/api/health`. A imagem escuta em
+`0.0.0.0` e usa `PORT`, fornecida pelo Render; fora dele usa `YESOD_PORT` (3000).
+HTTPS e fornecido pelo Render. As migracoes rodam ao iniciar, por isso o banco
+precisa existir e o usuario precisa poder criar/alterar suas tabelas.
+
+Em **Secret Files**, adicione `client_session_key.aes`, com uma chave Yesod
+valida. Para a primeira implantacao, pode usar o conteudo da chave local gerada
+pela aplicacao, sem publica-la no Git ou inclui-la na imagem. O Render monta
+esse segredo em `/etc/secrets/client_session_key.aes`; a imagem exige o arquivo
+e copia-o para o caminho esperado pelo Yesod. Mantenha a mesma chave entre
+deploys/replicas para preservar sessoes; trocar a chave invalida logins anteriores.
+
+Para testar com Docker local (Linux containers), configure as variaveis do banco
+no arquivo local `.env` e execute no PowerShell:
+
+```powershell
+docker build -t meu-crud .
+docker run --rm -p 3000:3000 --env-file .env --env YESOD_HOST=0.0.0.0 --env YESOD_PORT=3000 --mount "type=bind,source=$((Resolve-Path config\client_session_key.aes).Path),target=/etc/secrets/client_session_key.aes,readonly" meu-crud
+```
+
+Se o banco roda no host via Docker Desktop, use `YESOD_PGHOST=host.docker.internal`
+no container; `localhost` aponta para o proprio container. A imagem nao inclui
+PostgreSQL nem copia os dados locais. Nao envie senhas ou a chave de sessao no chat.
+
 ## Domain Model
 
 The equipment-lending domain uses seven entities, with English names in the code:
