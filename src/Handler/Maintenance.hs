@@ -13,10 +13,11 @@ maintenanceForm label initial = renderDivs $
 
 getEquipmentMaintenanceR :: EquipmentId -> Handler Html
 getEquipmentMaintenanceR eid = do
-    (_, equipment) <- requireEquipmentOwner eid
+    (Entity uid _, equipment) <- requireEquipmentReader eid
     records <- runDB $ selectList [MaintenanceEquipmentId ==. eid]
         [Desc MaintenanceStartedAt, Desc MaintenanceId]
     (widget, enctype) <- generateFormPost $ maintenanceForm "Motivo *" Nothing
+    let isOwner = uid == equipmentOwnerId equipment
     defaultLayout $ do
         setTitle "Manutencoes"
         [whamlet|
@@ -30,10 +31,11 @@ getEquipmentMaintenanceR eid = do
                         <span> - Aberta
                     $else
                         <span> - Encerrada
-            <h2>Abrir manutencao
-            <form method=post action=@{EquipmentMaintenanceR eid} enctype=#{enctype}>
-                ^{widget}
-                <button .btn.btn-primary type=submit>Abrir manutencao
+            $if isOwner
+                <h2>Abrir manutencao
+                <form method=post action=@{EquipmentMaintenanceR eid} enctype=#{enctype}>
+                    ^{widget}
+                    <button .btn.btn-primary type=submit>Abrir manutencao
         |]
 
 postEquipmentMaintenanceR :: EquipmentId -> Handler Html
@@ -51,10 +53,12 @@ maintenanceOwner mid = do
 
 getMaintenanceR :: MaintenanceId -> Handler Html
 getMaintenanceR mid = do
-    (_, maintenance) <- maintenanceOwner mid
+    maintenance <- runDB $ get404 mid
+    (Entity uid _, equipment) <- requireEquipmentReader $ maintenanceEquipmentId maintenance
     (editWidget, editEnctype) <- generateFormPost $
         maintenanceForm "Motivo *" $ Just $ maintenanceReason maintenance
     (finishWidget, finishEnctype) <- generateFormPost $ maintenanceForm "Resultado *" Nothing
+    let isOwner = uid == equipmentOwnerId equipment
     defaultLayout $ do
         setTitle "Manutencao"
         [whamlet|
@@ -65,15 +69,18 @@ getMaintenanceR mid = do
                 <p>Conclusao: #{displayTime end}
                 <p>Resultado: #{fromMaybe "" $ maintenanceResult maintenance}
             $nothing
-                <h2>Editar motivo
-                <form method=post action=@{MaintenanceEditR mid} enctype=#{editEnctype}>
-                    ^{editWidget}
-                    <button type=submit>Salvar motivo
-                <h2>Concluir manutencao
-                <form method=post action=@{MaintenanceFinishR mid} enctype=#{finishEnctype}>
-                    ^{finishWidget}
-                    <button .btn.btn-primary type=submit>Concluir
-            <p><a href=@{EquipmentMaintenanceR $ maintenanceEquipmentId maintenance}>Voltar as manutencoes
+                <p>Manutencao aberta.
+                $if isOwner
+                    <h2>Editar motivo
+                    <form method=post action=@{MaintenanceEditR mid} enctype=#{editEnctype}>
+                        ^{editWidget}
+                        <button type=submit>Salvar motivo
+                    <h2>Concluir manutencao
+                    <form method=post action=@{MaintenanceFinishR mid} enctype=#{finishEnctype}>
+                        ^{finishWidget}
+                        <button .btn.btn-primary type=submit>Concluir
+            <p>
+                <a href=@{EquipmentMaintenanceR $ maintenanceEquipmentId maintenance}>Voltar as manutencoes
         |]
 
 postMaintenanceEditR :: MaintenanceId -> Handler Html

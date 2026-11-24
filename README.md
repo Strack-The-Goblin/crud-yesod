@@ -1,3 +1,12 @@
+# Emprestimo de equipamentos entre alunos
+
+Aplicacao monolitica em Haskell/Yesod, com Persistent/PostgreSQL, Hamlet/Lucius
+e integracao ViaCEP pelo backend. Alunos disponibilizam equipamentos e acompanham
+solicitacoes, retiradas, devolucoes, inspecoes e manutencoes.
+
+**Trabalho individual:** Ruan Santos ([@Ruan6400](https://github.com/Ruan6400)).
+**Repositorio:** <https://github.com/Strack-The-Goblin/crud-yesod>.
+
 ## Haskell Setup
 
 1. If you haven't already, [install Stack](https://haskell-lang.org/get-started)
@@ -96,10 +105,10 @@ continues to work; a complete pickup address must be enforced when publishing
 equipment in the later workflow. Existing-account creation times are initialized
 at migration time, since the old schema did not record them.
 
-The data model, accounts, ViaCEP profile lookup, equipment catalog, requests,
-reservations, maintenance and checkout with initial inspection are implemented.
-Return/final inspection, damage-triggered maintenance and account/equipment
-deactivation are the next stages; checkout currently leaves the loan open.
+The complete workflow is implemented: accounts, ViaCEP lookup, equipment catalog,
+requests, reservations, checkout, return, inspections, maintenance and guarded
+account/equipment deactivation. Legacy scaffold upload/comment examples remain
+available below the equipment-lending introduction on the homepage.
 
 ## Accounts and Permissions
 
@@ -114,7 +123,9 @@ profile editing accepts changes to the account role, active flag or another user
 **Profile** (`/profile`) shows the current account and allows editing its name and
 pickup address. Address fields remain optional until equipment publication; when
 provided, CEP must have 8 digits and UF must be a valid uppercase Brazilian state.
-The profile does not change the login or password.
+The profile does not change the login or password. Accounts without domain links
+can be deleted; accounts with history can only be deactivated. Approved
+commitments or open loans block deactivation as either owner or requester.
 
 Protected handlers share checks for active users, administrators and owners.
 Being an administrator does not bypass an owner-only operation. Inactive users
@@ -170,12 +181,23 @@ profile and access category administration.
    condition/notes. Damaged condition requires notes. This atomically creates
    one loan and one initial inspection and marks the request as collected.
    `/loans` shows participant loans, deadlines and inspection history.
+8. The owner records return with the final condition/notes. Return, final
+   inspection and equipment condition update commit together. Damage requires
+   notes and opens maintenance in the same transaction. A loan is overdue whenever
+   its deadline has passed and return is absent; no scheduled task is needed.
+   Only inspection notes can be corrected, never kind, inspector, condition or
+   recorded timestamps.
+9. Owners/admins may deactivate equipment only without approved reservations or
+   open loans. History remains readable to authorized participants. On `/profile`,
+   an account without links can be deleted; otherwise use guarded deactivation.
+   `/admin` provides account/equipment moderation and read-only support access to
+   requests, loans and maintenance. Support access never bypasses owner mutations.
 
 All mutations use POST and Yesod form CSRF protection. Delete/cancel buttons ask
 for confirmation. Equipment operations lock participant user rows in ID order,
 then the equipment row inside a PostgreSQL transaction. This coordinates
 approval, cancellation, maintenance and checkout, including concurrent and
-duplicate submissions. Profile edits use the same user lock. Failed composite
+duplicate submissions. Profile edits use the same user lock. failed composite
 operations roll back completely; administrators cannot perform owner mutations
 on someone else's equipment.
 
@@ -199,6 +221,57 @@ half-open reservation limits, overlapping concurrent approvals, maintenance
 conflicts, concurrent checkout, and rollback after an inspection insert failure.
 The test executable uses `-threaded` so PostgreSQL concurrency tests can progress
 while another connection is waiting for a row lock.
+
+## Demonstracao e preparacao individual
+
+Use apenas dados ficticios e um CEP publico, nunca endereco ou senha reais:
+
+1. Registre duas contas de aluno e promova uma terceira conta para administrador.
+2. Como administrador, crie uma categoria. Como proprietario, consulte o CEP,
+   confirme o endereco e publique um equipamento.
+3. Como outro aluno, solicite um periodo futuro. Como proprietario, aprove e
+   demonstre que uma segunda aprovacao sobreposta e bloqueada.
+4. Mostre o endereco somente depois da aprovacao e, durante o periodo aprovado,
+   registre retirada com inspecao inicial.
+5. Registre devolucao danificada, confira a inspecao final/manutencao e conclua
+   a manutencao. Demonstre tambem uma devolucao normal.
+6. Mostre CRUD sem vinculos, exclusao/desativacao bloqueadas com compromissos,
+   historico preservado e as consultas administrativas.
+7. Reinicie o servidor e confira os mesmos dados.
+
+Para a arguicao, acompanhe uma operacao da rota ate o banco e explique:
+
+- [Rotas](config/routes.yesodroutes), [dispatch](src/Application.hs) e
+  [autorizacao](src/Foundation.hs): GET consulta, POST altera e valida CSRF.
+- [Modelo](config/models.persistentmodels): sete entidades, chaves estrangeiras,
+  unicidades e diferenca entre excluir dados sem vinculos e preservar historico.
+- [Handlers](src/Handler/) e [formularios](src/Handler/LendingCommon.hs):
+  entrada, mensagens, renderizacao escapada e erros sem falso sucesso.
+- [Regras](src/Lending.hs): estados, intervalos [inicio, fim), bloqueios em ordem
+  consistente, transacoes e rollback de operacoes compostas.
+- [ViaCEP](src/ViaCEP.hs): URL fixa, validacao, timeout, JSON, confirmacao e
+  tratamento explicito de indisponibilidade.
+- [Testes de dominio](test/LendingSpec.hs) e [interface](test/Handler/LendingSpec.hs):
+  concorrencia, permissoes, privacidade, duplicidades e falhas parciais.
+
+Antes da entrega, publique os commits locais no repositorio e confirme que o
+professor abre o link acima. Confira ao menos tres commits relevantes atribuidos
+a sua propria conta GitHub; commits locais nao enviados ainda nao aparecem no site.
+
+## Validacao local da entrega (24/11/2026)
+
+- `stack test --flag meu-crud:dev`: 64 testes, zero falhas.
+- Build em `.stack-work\delivery`, inicialmente sem cache da aplicacao,
+  reutilizando GHC/dependencias ja instalados; nao equivale a uma maquina nova.
+- Demonstracao no navegador com `banco_test`: cadastro, categoria, consulta real
+  ViaCEP, confirmacao/endereco persistido, equipamento, solicitacoes, aprovacao,
+  sobreposicao bloqueada, retirada no horario real aprovado e clique duplicado.
+- Devolucao danificada, inspecao final, manutencao concluida, CRUD sem vinculos,
+  desativacao bloqueada/completa e suporte administrativo sem bypass.
+- Reinicio preservou emprestimo encerrado, inspecoes, manutencao, endereco e
+  desativacao. Menu a 390 px funcionou sem overflow e sem Bootstrap JavaScript.
+- Publicacao dos commits recentes, acesso do professor e apresentacao individual
+  continuam sendo passos de entrega; esta validacao foi local.
 
 ## Development
 

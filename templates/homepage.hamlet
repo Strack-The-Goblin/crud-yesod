@@ -1,3 +1,14 @@
+<div .container>
+    <h1>Emprestimo de equipamentos entre alunos
+    <p>Disponibilize equipamentos, solicite reservas e acompanhe retiradas, devolucoes e manutencoes.
+    <p>
+        <a .btn.btn-primary href=@{CatalogR}>Acessar catalogo
+        <a .btn.btn-default href=@{ProfileR}>Meu perfil e endereco
+    <p>Para participar, entre com sua conta ou crie uma conta de aluno.
+    <p>
+        <a href=@{AuthR LoginR}>Entrar
+        <a href=@{RegisterR}>Criar conta
+
 <div .masthead>
     <div .container>
         <div .row>
@@ -37,8 +48,8 @@
                         <li .list-group-item>
                             We can link to other handlers, like the <a href="@{ProfileR}">Profile</a>.
                             Try it out as an anonymous user and see the access denied.
-                            Then, try to <a href="@{AuthR LoginR}">login</a> with the dummy authentication added
-                            while in development.
+                            Then, <a href="@{AuthR LoginR}">login</a> with a registered account.
+                            Dummy authentication is available only in the isolated test configuration.
 
                         <li .list-group-item>
                             The HTML you are seeing now is actually composed by a number of <em>widgets</em>, #

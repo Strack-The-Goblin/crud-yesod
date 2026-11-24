@@ -50,6 +50,7 @@ import Handler.Equipment
 import Handler.LoanRequest
 import Handler.Maintenance
 import Handler.Loan
+import Handler.Admin
 
 -- This line actually creates our YesodDispatch instance. It is the second half
 -- of the call to mkYesodData which occurs in Foundation.hs. Please see the
@@ -129,6 +130,8 @@ makeLogWare foundation = do
             "requests" : _ -> privateLogger application request respond
             "maintenance" : _ -> privateLogger application request respond
             "loans" : _ -> privateLogger application request respond
+            "inspections" : _ -> privateLogger application request respond
+            "admin" : _ -> privateLogger application request respond
             [route] | route `elem` ["catalog", "my-equipment", "publish-equipment", "received-requests"] ->
                 privateLogger application request respond
             _ -> regularLogger application request respond

@@ -18,3 +18,7 @@
 <form #profile-form method=post action=@{ProfileR} enctype=#{formEnctype}>
     ^{formWidget}
     <button .btn.btn-primary type=submit>Confirmar e salvar perfil
+<h2>Encerrar conta
+<p>Exclusao somente sem vinculos. Contas com historico podem ser desativadas depois de concluir reservas e emprestimos.
+^{actionForm ProfileDeleteR "Excluir conta sem vinculos"}
+^{actionForm ProfileDeactivateR "Desativar minha conta"}

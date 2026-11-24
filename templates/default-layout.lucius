@@ -8,6 +8,32 @@
     border-bottom: 2px solid white;
 }
 
+.navbar-default .navbar-nav > li > a {
+    color: #f4f4f4;
+}
+
+.navbar-default .navbar-nav > li > a:hover,
+.navbar-default .navbar-nav > li > a:focus {
+    color: white;
+    background-color: #333;
+}
+
+.navbar-default .navbar-toggle .icon-bar {
+    background-color: white;
+}
+
+input, select, textarea {
+    max-width: 100%;
+}
+
+.container, .panel-body {
+    overflow-wrap: break-word;
+}
+
+form {
+    margin-bottom: 1em;
+}
+
 .navbar-nav {
     padding-bottom: 1em;
 }

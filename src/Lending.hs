@@ -262,3 +262,85 @@ checkout actor rid condition notes = do
     insert_ $ Inspection lid actor CheckoutInspection condition (T.strip notes) now
     update rid [LoanRequestStatus =. Collected]
     pure lid
+
+returnLoan :: MonadIO m => UserId -> LoanId -> EquipmentCondition -> Text -> SqlPersistT m ()
+returnLoan actor lid condition notes = do
+    initial <- getRequired lid
+    (request, equipment) <- lockRequest actor $ loanSourceRequestId initial
+    ensure (equipmentOwnerId equipment == actor) "Somente o proprietario pode registrar a devolucao."
+    loan <- getRequired lid
+    ensure (isNothing $ loanReturnedAt loan) "Emprestimo ja devolvido."
+    now <- liftIO getCurrentTime
+    ensure (now >= loanCheckedOutAt loan) "Devolucao nao pode ser anterior a retirada."
+    ensure (condition /= Damaged || not (T.null $ T.strip notes)) "Dano exige observacoes."
+    let eid = loanRequestEquipmentId request
+    when (condition == Damaged) $ do
+        maintenance <- hasMaintenance eid
+        ensure (not maintenance) "Ja existe manutencao aberta para este equipamento."
+    update lid [LoanReturnedAt =. Just now]
+    insert_ $ Inspection lid actor ReturnInspection condition (T.strip notes) now
+    update eid [EquipmentCondition =. condition]
+    when (condition == Damaged) $ insert_ $
+        Maintenance eid ("Dano na devolucao: " <> T.strip notes) now Nothing Nothing
+
+correctInspectionNotes :: MonadIO m => UserId -> InspectionId -> Text -> SqlPersistT m ()
+correctInspectionNotes actor iid notes = do
+    initial <- getRequired iid
+    loan <- getRequired $ inspectionLoanId initial
+    (_, equipment) <- lockRequest actor $ loanSourceRequestId loan
+    ensure (equipmentOwnerId equipment == actor) "Somente o proprietario pode corrigir observacoes."
+    inspection <- getRequired iid
+    ensure (inspectionCondition inspection /= Damaged || not (T.null $ T.strip notes))
+        "Inspecao com dano exige observacoes."
+    ensure (T.length notes <= 4000) "Observacoes muito longas."
+    update iid [InspectionNotes =. T.strip notes]
+
+userHasCommitments :: MonadIO m => UserId -> SqlPersistT m Bool
+userHasCommitments uid = do
+    equipmentIds <- selectKeysList [EquipmentOwnerId ==. uid] []
+    requests <- selectList
+        ([LoanRequestRequesterId ==. uid] ||. [LoanRequestEquipmentId <-. equipmentIds]) []
+    open <- exists [LoanSourceRequestId <-. map entityKey requests, LoanReturnedAt ==. Nothing]
+    pure $ open || any ((== Approved) . loanRequestStatus . entityVal) requests
+
+userHasHistory :: MonadIO m => UserId -> SqlPersistT m Bool
+userHasHistory uid = or <$> sequence
+    [ exists [EquipmentOwnerId ==. uid]
+    , exists [LoanRequestRequesterId ==. uid]
+    , exists [InspectionInspectorId ==. uid]
+    , exists [CommentUserId ==. Just uid]
+    ]
+
+removeAccount :: MonadIO m => UserId -> SqlPersistT m ()
+removeAccount actor = do
+    lockUsers [actor]
+    _ <- activeUser actor
+    history <- userHasHistory actor
+    ensure (not history) "Conta com vinculos ou historico; use a desativacao."
+    deleteWhere [EmailUserId ==. Just actor]
+    delete actor
+
+deactivateAccount :: MonadIO m => UserId -> UserId -> SqlPersistT m ()
+deactivateAccount actor target = do
+    lockUsers [actor, target]
+    user <- activeUser actor
+    ensure (actor == target || userRole user == Administrator)
+        "Somente o titular ou administrador pode desativar a conta."
+    account <- getRequired target
+    ensure (userActive account) "Conta ja desativada."
+    commitments <- userHasCommitments target
+    ensure (not commitments) "Conta com reserva aprovada ou emprestimo aberto; conclua os compromissos primeiro."
+    update target [UserActive =. False]
+
+deactivateEquipment :: MonadIO m => UserId -> EquipmentId -> SqlPersistT m ()
+deactivateEquipment actor eid = do
+    equipment <- lockedEquipment actor eid
+    user <- activeUser actor
+    ensure (equipmentOwnerId equipment == actor || userRole user == Administrator)
+        "Somente o proprietario ou administrador pode desativar o equipamento."
+    ensure (equipmentActive equipment) "Equipamento ja desativado."
+    approved <- exists [LoanRequestEquipmentId ==. eid, LoanRequestStatus ==. Approved]
+    open <- hasOpenLoan eid
+    ensure (not approved && not open)
+        "Equipamento com reserva aprovada ou emprestimo aberto; conclua os compromissos primeiro."
+    update eid [EquipmentActive =. False]

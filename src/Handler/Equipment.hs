@@ -120,14 +120,17 @@ postEquipmentDeleteR eid = do
     redirect MyEquipmentR
 
 getCatalogR :: Handler Html
-getCatalogR = equipmentList False
+getCatalogR = equipmentList False False
 
 getMyEquipmentR :: Handler Html
-getMyEquipmentR = equipmentList True
+getMyEquipmentR = equipmentList True False
 
-equipmentList :: Bool -> Handler Html
-equipmentList mine = do
-    Entity uid _ <- requireActiveUser
+getAdminEquipmentR :: Handler Html
+getAdminEquipmentR = equipmentList False True
+
+equipmentList :: Bool -> Bool -> Handler Html
+equipmentList mine support = do
+    Entity uid _ <- if support then requireAdministrator else requireActiveUser
     (search, category, page) <- runInputGet $ (,,)
         <$> iopt textField "name" <*> iopt (intField :: Field Handler Int64) "category" <*> iopt intField "page"
     let pageNumber = fromMaybe 1 page
@@ -138,7 +141,7 @@ equipmentList mine = do
     let nameQuery = fromMaybe "" search
         escaped = T.concatMap (\c -> if c `elem` ("%_\\" :: String) then T.pack ['\\', c] else T.singleton c) nameQuery
         base = "SELECT ?? FROM equipment WHERE "
-        ownerClause = if mine then "owner_id = ?" else
+        ownerClause = if support then "TRUE" else if mine then "owner_id = ?" else
             "active = true AND owner_id IN (SELECT id FROM \"user\" WHERE active = true)"
         categoryClause = maybe "" (const " AND category_id = ?") categoryId
         nameClause = " AND name ILIKE ?"
@@ -150,20 +153,21 @@ equipmentList mine = do
         free <- runDB $ availableNow eid equipment
         pure (eid, equipment, free)
     let more = length rows > 20
-        heading = if mine then ("Meus equipamentos" :: Text) else "Catalogo"
-        route = if mine then MyEquipmentR else CatalogR
+        heading = if support then "Equipamentos (suporte)" else if mine then ("Meus equipamentos" :: Text) else "Catalogo"
+        route = if support then AdminEquipmentR else if mine then MyEquipmentR else CatalogR
         pageParams n = [("name", nameQuery), ("page", tshow n)]
             ++ maybe [] (\cid -> [("category", tshow $ fromSqlKey cid)]) categoryId
     defaultLayout $ do
         setTitle "Equipamentos"
         [whamlet|
             <h1>#{heading}
-            <p><a .btn.btn-primary href=@{EquipmentNewR}>Publicar equipamento
+            <p>
+                <a .btn.btn-primary href=@{EquipmentNewR}>Publicar equipamento
             <form method=get action=@{route}>
-                <label>Nome
-                <input name=name value=#{nameQuery}>
-                <label>Categoria
-                <select name=category>
+                <label for=catalog-name>Nome
+                <input #catalog-name name=name value=#{nameQuery}>
+                <label for=catalog-category>Categoria
+                <select #catalog-category name=category>
                     <option value="">Todas
                     $forall Entity cid categoryValue <- categories
                         <option value=#{fromSqlKey cid} :(Just cid == categoryId):selected>#{categoryName categoryValue}
@@ -174,7 +178,8 @@ equipmentList mine = do
             $forall (eid, equipment, free) <- items
                 <section .panel.panel-default>
                     <div .panel-body>
-                        <h2><a href=@{EquipmentR eid}>#{equipmentName equipment}
+                        <h2>
+                            <a href=@{EquipmentR eid}>#{equipmentName equipment}
                         <p>#{equipmentDescription equipment}
                         <p>#{availabilityLabel free}
             $if pageNumber > 1
@@ -198,6 +203,7 @@ getEquipmentR eid = do
         [LoanRequestEquipmentId ==. eid, LoanRequestStatus ==. Approved]
         [Asc LoanRequestStartsAt, Asc LoanRequestId]
     let isOwner = uid == equipmentOwnerId equipment
+        canDeactivate = equipmentActive equipment && (isOwner || userRole user == Administrator)
     defaultLayout $ do
         setTitle $ toHtml $ equipmentName equipment
         [whamlet|
@@ -206,6 +212,9 @@ getEquipmentR eid = do
             <p>Categoria: #{categoryName category}
             <p>Condicao: #{conditionLabel $ equipmentCondition equipment}
             <p>Proprietario: #{userName owner}
+            <p>Identificacao: #{equipmentIdentification equipment}
+            $if not $ equipmentActive equipment
+                <p .alert.alert-warning>Equipamento desativado.
             <p>#{availabilityLabel free}
             <h2>Periodos reservados (UTC-03:00)
             $if null reservations
@@ -213,13 +222,29 @@ getEquipmentR eid = do
             $forall Entity _ reservation <- reservations
                 <p>#{displayTime $ loanRequestStartsAt reservation} ate #{displayTime $ loanRequestEndsAt reservation}
             $if isOwner
-                <p><a href=@{EquipmentEditR eid}>Editar equipamento
-                <p><a href=@{EquipmentMaintenanceR eid}>Manutencoes
+                <p>
+                    <a href=@{EquipmentEditR eid}>Editar equipamento
+                <p>
+                    <a href=@{EquipmentMaintenanceR eid}>Manutencoes
                 ^{actionForm (EquipmentDeleteR eid) "Excluir equipamento sem historico"}
             $else
                 $if equipmentActive equipment
-                    <p><a .btn.btn-primary href=@{RequestNewR eid}>Solicitar equipamento
+                    <p>
+                        <a .btn.btn-primary href=@{RequestNewR eid}>Solicitar equipamento
+                $if userRole user == Administrator
+                    <p>
+                        <a href=@{EquipmentMaintenanceR eid}>Consultar manutencoes (suporte)
+            $if canDeactivate
+                ^{actionForm (EquipmentDeactivateR eid) "Desativar equipamento"}
         |]
+
+postEquipmentDeactivateR :: EquipmentId -> Handler Html
+postEquipmentDeactivateR eid = do
+    (Entity uid _, _) <- requireEquipmentReader eid
+    postEmpty
+    runLending $ deactivateEquipment uid eid
+    setMessage "Equipamento desativado; historico preservado."
+    redirect $ EquipmentR eid
 
 availabilityLabel :: Bool -> Text
 availabilityLabel True = "Disponivel para consulta de periodo"

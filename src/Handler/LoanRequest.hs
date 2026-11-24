@@ -51,22 +51,27 @@ postRequestEditR rid = do
         pure $ RequestR rid
 
 getRequestListR :: Handler Html
-getRequestListR = requestList False
+getRequestListR = requestList False False
 
 getReceivedRequestsR :: Handler Html
-getReceivedRequestsR = requestList True
+getReceivedRequestsR = requestList True False
 
-requestList :: Bool -> Handler Html
-requestList received = do
-    Entity uid _ <- requireActiveUser
+getAdminRequestsR :: Handler Html
+getAdminRequestsR = requestList False True
+
+requestList :: Bool -> Bool -> Handler Html
+requestList received support = do
+    Entity uid _ <- if support then requireAdministrator else requireActiveUser
+    page <- getPage
     equipmentIds <- runDB $ selectKeysList [EquipmentOwnerId ==. uid] []
     requests <- runDB $ selectList
-        (if received then [LoanRequestEquipmentId <-. equipmentIds] else [LoanRequestRequesterId ==. uid])
-        [Desc LoanRequestCreatedAt, Desc LoanRequestId]
-    rows <- forM requests $ \(Entity rid request) -> do
+        (if support then [] else if received then [LoanRequestEquipmentId <-. equipmentIds] else [LoanRequestRequesterId ==. uid])
+        [Desc LoanRequestCreatedAt, Desc LoanRequestId, LimitTo 21, OffsetBy ((page - 1) * 20)]
+    rows <- forM (take 20 requests) $ \(Entity rid request) -> do
         equipment <- runDB $ getJust $ loanRequestEquipmentId request
         pure (rid, request, equipment)
-    let heading = if received then ("Solicitacoes recebidas" :: Text) else "Minhas solicitacoes"
+    let heading = if support then "Solicitacoes (suporte)" else if received then ("Solicitacoes recebidas" :: Text) else "Minhas solicitacoes"
+        route = if support then AdminRequestsR else if received then ReceivedRequestsR else RequestListR
     defaultLayout $ do
         setTitle "Solicitacoes"
         [whamlet|
@@ -76,9 +81,11 @@ requestList received = do
             $forall (rid, request, equipment) <- rows
                 <section .panel.panel-default>
                     <div .panel-body>
-                        <h2><a href=@{RequestR rid}>#{equipmentName equipment}
+                        <h2>
+                            <a href=@{RequestR rid}>#{equipmentName equipment}
                         <p>#{statusLabel $ loanRequestStatus request}
                         <p>#{displayTime $ loanRequestStartsAt request} ate #{displayTime $ loanRequestEndsAt request}
+            ^{pageNavigation route page (length requests > 20)}
         |]
 
 reasonForm :: Form Text
@@ -120,7 +127,8 @@ getRequestR rid = do
             $else
                 <p>Endereco de retirada sera exibido apos a aprovacao.
             $if canEdit
-                <p><a href=@{RequestEditR rid}>Editar
+                <p>
+                    <a href=@{RequestEditR rid}>Editar
                 ^{actionForm (RequestDeleteR rid) "Excluir solicitacao pendente"}
             $if canCancel
                 ^{actionForm (RequestCancelR rid) "Cancelar solicitacao"}
@@ -130,9 +138,11 @@ getRequestR rid = do
                     ^{reasonWidget}
                     <button .btn.btn-default type=submit>Recusar
             $if canCheckout
-                <p><a .btn.btn-primary href=@{CheckoutR rid}>Registrar retirada e inspecao
+                <p>
+                    <a .btn.btn-primary href=@{CheckoutR rid}>Registrar retirada e inspecao
             $maybe Entity lid _ <- loan
-                <p><a href=@{LoanR lid}>Consultar emprestimo
+                <p>
+                    <a href=@{LoanR lid}>Consultar emprestimo
         |]
 
 postRequestDeleteR :: LoanRequestId -> Handler Html

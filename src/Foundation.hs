@@ -116,21 +116,23 @@ instance Yesod App where
         -- Define the menu items of the header.
         let menuItems =
                 [ NavbarLeft $ MenuItem
-                    { menuItemLabel = "Home"
+                    { menuItemLabel = "Inicio"
                     , menuItemRoute = HomeR
                     , menuItemAccessCallback = True
                     }
                 , NavbarLeft $ MenuItem
-                    { menuItemLabel = "Profile"
+                    { menuItemLabel = "Meu perfil"
                     , menuItemRoute = ProfileR
                     , menuItemAccessCallback = isJust muser
                     }
                 , NavbarLeft $ MenuItem "Catalogo" CatalogR (isJust muser)
                 , NavbarLeft $ MenuItem "Meus equipamentos" MyEquipmentR (isJust muser)
                 , NavbarLeft $ MenuItem "Minhas solicitacoes" RequestListR (isJust muser)
-                , NavbarLeft $ MenuItem "Recebidas" ReceivedRequestsR (isJust muser)
-                , NavbarLeft $ MenuItem "Emprestimos" LoansR (isJust muser)
+                , NavbarLeft $ MenuItem "Solicitacoes recebidas" ReceivedRequestsR (isJust muser)
+                , NavbarLeft $ MenuItem "Meus emprestimos" LoansR (isJust muser)
                 , NavbarLeft $ MenuItem "Categorias" CategoriesR
+                    (maybe False ((== Administrator) . userRole . snd) muser)
+                , NavbarLeft $ MenuItem "Administracao" AdminR
                     (maybe False ((== Administrator) . userRole . snd) muser)
                 , NavbarRight $ MenuItem
                     { menuItemLabel = "Criar conta"
@@ -143,7 +145,7 @@ instance Yesod App where
                     , menuItemAccessCallback = isNothing muser
                     }
                 , NavbarRight $ MenuItem
-                    { menuItemLabel = "Logout"
+                    { menuItemLabel = "Sair"
                     , menuItemRoute = AuthR LogoutR
                     , menuItemAccessCallback = isJust muser
                     }
@@ -242,6 +244,30 @@ instance YesodBreadcrumbs App where
     breadcrumb (AuthR _) = return ("Login", Just HomeR)
     breadcrumb ProfileR = return ("Profile", Just HomeR)
     breadcrumb RegisterR = return ("Criar conta", Just HomeR)
+    breadcrumb ProfileCEPR = return ("Consultar CEP", Just ProfileR)
+    breadcrumb CatalogR = return ("Catalogo", Just HomeR)
+    breadcrumb MyEquipmentR = return ("Meus equipamentos", Just CatalogR)
+    breadcrumb EquipmentNewR = return ("Publicar equipamento", Just MyEquipmentR)
+    breadcrumb (EquipmentR _) = return ("Equipamento", Just CatalogR)
+    breadcrumb (EquipmentEditR eid) = return ("Editar equipamento", Just $ EquipmentR eid)
+    breadcrumb (EquipmentMaintenanceR eid) = return ("Manutencoes", Just $ EquipmentR eid)
+    breadcrumb RequestListR = return ("Minhas solicitacoes", Just HomeR)
+    breadcrumb ReceivedRequestsR = return ("Solicitacoes recebidas", Just HomeR)
+    breadcrumb (RequestR _) = return ("Solicitacao", Just RequestListR)
+    breadcrumb (RequestNewR eid) = return ("Solicitar equipamento", Just $ EquipmentR eid)
+    breadcrumb (RequestEditR rid) = return ("Editar solicitacao", Just $ RequestR rid)
+    breadcrumb LoansR = return ("Meus emprestimos", Just HomeR)
+    breadcrumb (LoanR _) = return ("Emprestimo", Just LoansR)
+    breadcrumb (CheckoutR rid) = return ("Retirada", Just $ RequestR rid)
+    breadcrumb (ReturnLoanR lid) = return ("Devolucao", Just $ LoanR lid)
+    breadcrumb (InspectionEditR _) = return ("Observacoes da inspecao", Just LoansR)
+    breadcrumb (MaintenanceR _) = return ("Manutencao", Just MyEquipmentR)
+    breadcrumb AdminR = return ("Administracao", Just HomeR)
+    breadcrumb AdminUsersR = return ("Contas", Just AdminR)
+    breadcrumb (AdminUserR _) = return ("Conta", Just AdminUsersR)
+    breadcrumb AdminEquipmentR = return ("Equipamentos (suporte)", Just AdminR)
+    breadcrumb AdminRequestsR = return ("Solicitacoes (suporte)", Just AdminR)
+    breadcrumb AdminLoansR = return ("Emprestimos (suporte)", Just AdminR)
     breadcrumb  _ = return ("home", Nothing)
 
 -- How to run database actions.

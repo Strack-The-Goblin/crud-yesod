@@ -45,6 +45,17 @@ $newline never
 
     <script>
       document.documentElement.className = document.documentElement.className.replace(/\bno-js\b/,'js');
+      document.addEventListener('DOMContentLoaded', function () {
+      \  var toggle = document.querySelector('[data-target="#navbar"]');
+      \  if (toggle) {
+      \    toggle.addEventListener('click', function () {
+      \      if (window.jQuery && window.jQuery.fn.collapse) return;
+      \      var navbar = document.getElementById('navbar');
+      \      var expanded = navbar.classList.toggle('in');
+      \      toggle.setAttribute('aria-expanded', String(expanded));
+      \    });
+      \  }
+      });
   <body>
     ^{pageBody pc}
 

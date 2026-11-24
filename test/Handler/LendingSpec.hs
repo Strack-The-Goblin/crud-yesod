@@ -190,6 +190,147 @@ spec = withApp $ describe "Lending pages" $ do
         saved <- runDB $ getJust uid
         liftIO $ userStreet saved `shouldBe` Just "Avenida Publica"
 
+    it "shows overdue loans and confirms owner-only return with damage maintenance and immutable inspection metadata" $ do
+        (owner, borrower, eid, lid) <- loanFixture
+        now <- liftIO getCurrentTime
+        runDB $ update lid [LoanDueAt =. addUTCTime (-60) now]
+        authenticateAs borrower
+        get LoansR
+        htmlAnyContain "p" "atrasado"
+        get $ ReturnLoanR lid
+        statusIs 403
+        authenticateAs owner
+        get $ ReturnLoanR lid
+        htmlCount "form[onsubmit]" 1
+        request $ do
+            setMethod "POST"
+            setUrl $ ReturnLoanR lid
+            addPostParam "condition" "3"
+            addPostParam "notes" "Broken"
+        unchanged <- runDB $ getJust lid
+        liftIO $ loanReturnedAt unchanged `shouldBe` Nothing
+        get $ ReturnLoanR lid
+        postFields (ReturnLoanR lid) [("condition", "3"), ("notes", "")]
+        statusIs 409
+        get $ ReturnLoanR lid
+        postFields (ReturnLoanR lid) [("condition", "3"), ("notes", "Broken cable")]
+        statusIs 303
+        get $ LoanR lid
+        htmlAnyContain "h3" "Devolucao"
+        htmlAnyContain "p" "Encerrado"
+        Entity iid initial <- requireFound =<< (runDB $ getBy $ UniqueLoanInspection lid ReturnInspection)
+        get $ InspectionEditR iid
+        postFields (InspectionEditR iid)
+            [("notes", "Broken connector"), ("condition", "1"), ("kind", "CheckoutInspection"),
+             ("inspectorId", tshow $ fromSqlKey $ entityKey borrower), ("performedAt", "2000-01-01")]
+        statusIs 303
+        persisted <- runDB $ getJust iid
+        liftIO $ persisted `shouldBe` initial { inspectionNotes = "Broken connector" }
+        get $ EquipmentMaintenanceR eid
+        htmlAnyContain "a" "Dano na devolucao"
+        authenticateAs borrower
+        get $ InspectionEditR iid
+        statusIs 403
+
+    it "excludes accounts without links, clears sessions and only deactivates accounts with history" $ do
+        temporary@(Entity uid _) <- createUser "temporary"
+        authenticateAs temporary
+        get ProfileR
+        request $ do
+            setMethod "POST"
+            setUrl ProfileDeleteR
+        persisted <- runDB $ DB.get uid
+        liftIO $ isJust persisted `shouldBe` True
+        get ProfileR
+        postFields ProfileDeleteR []
+        statusIs 303
+        removed <- runDB $ DB.get uid
+        liftIO $ isNothing removed `shouldBe` True
+        get ProfileR
+        statusIs 403
+        (owner, _, _, _) <- fixture
+        authenticateAs owner
+        get ProfileR
+        postFields ProfileDeleteR []
+        statusIs 409
+        get ProfileR
+        postFields ProfileDeactivateR []
+        statusIs 303
+        inactive <- runDB $ getJust $ entityKey owner
+        liftIO $ userActive inactive `shouldBe` False
+        get ProfileR
+        statusIs 403
+
+    it "permits admin support and deactivation without bypassing owner mutations or existing sessions" $ do
+        (owner, borrower, eid, lid) <- loanFixture
+        admin@(Entity adminId _) <- createUser "admin"
+        runDB $ update adminId [UserRole =. Administrator]
+        authenticateAs borrower
+        get AdminR
+        statusIs 403
+        authenticateAs admin
+        forM_ [AdminR, AdminUsersR, AdminEquipmentR, AdminRequestsR, AdminLoansR,
+                AdminUserR (entityKey owner), LoanR lid] $ \route -> get route >> statusIs 200
+        get $ AdminUserR $ entityKey borrower
+        postFields (AdminUserDeactivateR $ entityKey borrower) []
+        statusIs 409
+        get $ EquipmentR eid
+        postFields (EquipmentDeactivateR eid) []
+        statusIs 409
+        get $ ReturnLoanR lid
+        statusIs 403
+        runDB $ L.returnLoan (entityKey owner) lid Damaged "Broken cable"
+        Entity mid _ <- requireSingle =<< (runDB $ selectList [MaintenanceEquipmentId ==. eid] [])
+        get $ EquipmentMaintenanceR eid
+        statusIs 200
+        get $ MaintenanceR mid
+        statusIs 200
+        htmlCount "form" 0
+        request $ do
+            setMethod "POST"
+            setUrl $ MaintenanceFinishR mid
+            addPostParam "value" "Forged"
+        statusIs 403
+        get $ EquipmentR eid
+        postFields (EquipmentDeactivateR eid) []
+        statusIs 303
+        get AdminEquipmentR
+        htmlAnyContain "h2" "Arduino"
+        authenticateAs borrower
+        get ProfileR
+        runDB $ L.deactivateAccount adminId $ entityKey borrower
+        get ProfileR
+        statusIs 403
+
+    it "keeps action forms and unrelated content outside navigation links" $ do
+        (owner, _, eid, lid) <- loanFixture
+        authenticateAs owner
+        forM_ [CatalogR, EquipmentR eid, LoanR lid] $ \route -> do
+            get route
+            statusIs 200
+            htmlCount "a form" 0
+            htmlCount "a footer" 0
+
+    it "hides deactivated equipment from catalog but preserves authorized history and rejects new operations" $ do
+        (owner, borrower, eid, _) <- fixture
+        authenticateAs owner
+        get $ EquipmentR eid
+        postFields (EquipmentDeactivateR eid) []
+        statusIs 303
+        get MyEquipmentR
+        htmlAnyContain "h2" "Arduino"
+        authenticateAs borrower
+        get CatalogR
+        htmlCount "section.panel" 0
+        get $ EquipmentR eid
+        statusIs 403
+        get $ RequestNewR eid
+        now <- liftIO getCurrentTime
+        postFields (RequestNewR eid)
+            [("startsAt", timestampInput $ addUTCTime 3600 now),
+             ("endsAt", timestampInput $ addUTCTime 7200 now), ("purpose", "Study")]
+        statusIs 409
+
 postFields :: Route App -> [(Text, Text)] -> YesodExample App ()
 postFields route fields = request $ do
     setMethod "POST"
@@ -224,3 +365,13 @@ fixture = do
         cid <- insert $ Category "Tools" "Lab tools"
         L.saveEquipment (entityKey owner) Nothing "Arduino" "Starter kit" "KIT-1" Good cid
     pure (owner, borrower, eid, now)
+
+loanFixture :: YesodExample App (Entity User, Entity User, EquipmentId, LoanId)
+loanFixture = do
+    (owner, borrower, eid, now) <- fixture
+    rid <- runDB $ L.saveRequest (entityKey borrower) eid Nothing
+        (addUTCTime 3600 now) (addUTCTime 7200 now) "Study"
+    runDB $ L.decideRequest (entityKey owner) rid True ""
+    runDB $ update rid [LoanRequestStartsAt =. addUTCTime (-60) now]
+    lid <- runDB $ L.checkout (entityKey owner) rid Good ""
+    pure (owner, borrower, eid, lid)

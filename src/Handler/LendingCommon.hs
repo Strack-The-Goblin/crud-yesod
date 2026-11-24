@@ -19,7 +19,8 @@ runLending action = do
                 [whamlet|
                     <h1>Operacao bloqueada
                     <p .alert.alert-warning>#{message}
-                    <p><a href=@{CatalogR}>Voltar ao catalogo
+                    <p>
+                        <a href=@{CatalogR}>Voltar ao catalogo
                 |]
             sendResponseStatus status409 page
 
@@ -89,10 +90,30 @@ editPage title route widget enctype = defaultLayout $ do
     setTitle $ toHtml title
     [whamlet|
         <h1>#{title}
-        <form method=post action=@{route} enctype=#{enctype}>
+        <form method=post action=@{route} enctype=#{enctype} :needsConfirmation route:onsubmit="return confirm('Confirmar devolucao e inspecao final?')">
             ^{widget}
             <button .btn.btn-primary type=submit>Salvar
     |]
+
+needsConfirmation :: Route App -> Bool
+needsConfirmation (ReturnLoanR _) = True
+needsConfirmation _ = False
+
+getPage :: Handler Int
+getPage = do
+    page <- fromMaybe 1 <$> runInputGet (iopt intField "page")
+    when (page < 1 || page > 100000) $ invalidArgs ["Pagina invalida."]
+    pure page
+
+pageNavigation :: Route App -> Int -> Bool -> Widget
+pageNavigation route page more = [whamlet|
+    <nav aria-label="Paginacao">
+        $if page > 1
+            <a href=@?{(route, [("page", tshow (page - 1))])}>Anterior
+        <span> Pagina #{page}
+        $if more
+            <a href=@?{(route, [("page", tshow (page + 1))])}>Proxima
+|]
 
 submitForm :: Text -> Route App -> Form a -> (a -> SqlPersistT Handler (Route App)) -> Handler Html
 submitForm title route form save = do
@@ -114,6 +135,14 @@ requireEquipmentOwner eid = do
     account@(Entity uid _) <- requireActiveUser
     equipment <- runDB $ get404 eid
     unless (equipmentOwnerId equipment == uid) $ permissionDenied "Acesso exclusivo do proprietario."
+    pure (account, equipment)
+
+requireEquipmentReader :: EquipmentId -> Handler (Entity User, Equipment)
+requireEquipmentReader eid = do
+    account@(Entity uid user) <- requireActiveUser
+    equipment <- runDB $ get404 eid
+    unless (equipmentOwnerId equipment == uid || userRole user == Administrator) $
+        permissionDenied "Acesso exclusivo do proprietario ou administrador."
     pure (account, equipment)
 
 requireRequestParticipant :: LoanRequestId -> Handler (Entity User, LoanRequest, Equipment)

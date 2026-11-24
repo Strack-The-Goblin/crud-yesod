@@ -15,6 +15,8 @@
 /register RegisterR GET POST
 /profile ProfileR GET POST
 /profile/cep ProfileCEPR POST
+/profile/delete ProfileDeleteR POST
+/profile/deactivate ProfileDeactivateR POST
 
 /categories CategoriesR GET POST
 /categories/#CategoryId/edit CategoryEditR GET POST
@@ -26,6 +28,7 @@
 /equipment/#EquipmentId EquipmentR GET
 /equipment/#EquipmentId/edit EquipmentEditR GET POST
 /equipment/#EquipmentId/delete EquipmentDeleteR POST
+/equipment/#EquipmentId/deactivate EquipmentDeactivateR POST
 /equipment/#EquipmentId/request RequestNewR GET POST
 /requests RequestListR GET
 /received-requests ReceivedRequestsR GET
@@ -42,3 +45,13 @@
 /requests/#LoanRequestId/checkout CheckoutR GET POST
 /loans LoansR GET
 /loans/#LoanId LoanR GET
+/loans/#LoanId/return ReturnLoanR GET POST
+/inspections/#InspectionId/edit InspectionEditR GET POST
+
+/admin AdminR GET
+/admin/users AdminUsersR GET
+/admin/users/#UserId AdminUserR GET
+/admin/users/#UserId/deactivate AdminUserDeactivateR POST
+/admin/equipment AdminEquipmentR GET
+/admin/requests AdminRequestsR GET
+/admin/loans AdminLoansR GET

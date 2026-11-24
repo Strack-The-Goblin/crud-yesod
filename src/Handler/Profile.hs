@@ -9,7 +9,7 @@ import Import
 import Form.User
 import ViaCEP
 import Lending
-import Handler.LendingCommon (runLending)
+import Handler.LendingCommon (runLending, actionForm, postEmpty)
 
 getProfileR :: Handler Html
 getProfileR = do
@@ -88,3 +88,21 @@ postProfileCEPR = do
             defaultLayout $(widgetFile "profile")
   where
     nonEmpty value = if null value then Nothing else Just value
+
+postProfileDeleteR :: Handler Html
+postProfileDeleteR = do
+    Entity uid _ <- requireActiveUser
+    postEmpty
+    runLending $ removeAccount uid
+    clearCreds False
+    setMessage "Conta sem vinculos excluida."
+    redirect HomeR
+
+postProfileDeactivateR :: Handler Html
+postProfileDeactivateR = do
+    Entity uid _ <- requireActiveUser
+    postEmpty
+    runLending $ deactivateAccount uid uid
+    clearCreds False
+    setMessage "Conta desativada; historico preservado."
+    redirect HomeR
