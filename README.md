@@ -103,12 +103,20 @@ Configure o **Health Check Path** como `/api/health`. A imagem escuta em
 HTTPS e fornecido pelo Render. As migracoes rodam ao iniciar, por isso o banco
 precisa existir e o usuario precisa poder criar/alterar suas tabelas.
 
-Em **Secret Files**, adicione `client_session_key.aes`, com uma chave Yesod
-valida. Para a primeira implantacao, pode usar o conteudo da chave local gerada
-pela aplicacao, sem publica-la no Git ou inclui-la na imagem. O Render monta
-esse segredo em `/etc/secrets/client_session_key.aes`; a imagem exige o arquivo
-e copia-o para o caminho esperado pelo Yesod. Mantenha a mesma chave entre
-deploys/replicas para preservar sessoes; trocar a chave invalida logins anteriores.
+A chave Yesod e **binaria**, nao deve ser colada como texto em Secret Files.
+Para o Render, copie sua representacao Base64 para o clipboard no PowerShell:
+
+```powershell
+[Convert]::ToBase64String([IO.File]::ReadAllBytes((Resolve-Path config\client_session_key.aes).Path)) | Set-Clipboard
+```
+
+Crie a variavel secreta `YESOD_SESSION_KEY_BASE64` no Web Service e cole esse
+valor. A imagem decodifica a chave ao iniciar, sem imprimi-la; Base64 nao e
+criptografia, portanto o valor continua sendo segredo. Alternativamente, Docker
+local pode montar o arquivo binario em `/etc/secrets/client_session_key.aes`.
+Se ambos forem fornecidos, a variavel tem prioridade. Base64 invalido ou chave
+ausente/vazia interrompe a inicializacao. Mantenha a mesma chave entre deploys
+e replicas para preservar sessoes; trocar a chave invalida logins anteriores.
 
 Para testar com Docker local (Linux containers), configure as variaveis do banco
 no arquivo local `.env` e execute no PowerShell:

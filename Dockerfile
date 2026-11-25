@@ -53,5 +53,5 @@ RUN mkdir -p static/tmp static/combined \
 USER app
 EXPOSE 3000
 
-ENTRYPOINT ["/bin/sh", "-c", "set -eu; export YESOD_PORT=\"${PORT:-${YESOD_PORT}}\"; if [ ! -s /etc/secrets/client_session_key.aes ]; then echo 'Missing session key: mount /etc/secrets/client_session_key.aes' >&2; exit 1; fi; cp /etc/secrets/client_session_key.aes config/client_session_key.aes; exec /usr/local/bin/meu-crud \"$@\"", "--"]
+ENTRYPOINT ["/bin/sh", "-c", "set -eu; umask 077; export YESOD_PORT=\"${PORT:-${YESOD_PORT}}\"; if [ -n \"${YESOD_SESSION_KEY_BASE64:-}\" ]; then printf '%s' \"$YESOD_SESSION_KEY_BASE64\" | base64 --decode > config/client_session_key.aes; unset YESOD_SESSION_KEY_BASE64; elif [ -s /etc/secrets/client_session_key.aes ]; then cp /etc/secrets/client_session_key.aes config/client_session_key.aes; else echo 'Missing session key: set YESOD_SESSION_KEY_BASE64 or mount /etc/secrets/client_session_key.aes' >&2; exit 1; fi; if [ ! -s config/client_session_key.aes ]; then echo 'Session key must not be empty' >&2; exit 1; fi; exec /usr/local/bin/meu-crud \"$@\"", "--"]
 CMD ["config/settings.yml"]
