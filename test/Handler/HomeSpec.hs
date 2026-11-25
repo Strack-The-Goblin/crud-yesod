@@ -5,31 +5,22 @@ module Handler.HomeSpec (spec) where
 import TestImport
 
 spec :: Spec
-spec = withApp $ do
+spec = withApp $ describe "Homepage" $ do
+    it "shows the lending introduction and registration without scaffold forms" $ do
+        get HomeR
+        statusIs 200
+        htmlAnyContain "h1" "O equipamento que voce precisa"
+        htmlAnyContain ".home-actions a" "Criar minha conta"
+        htmlAnyContain "footer" "Emprestimo de equipamentos entre alunos"
+        htmlCount "form" 0
+        htmlCount ".masthead" 0
 
-    describe "Homepage" $ do
-        it "loads the index and checks it looks right" $ do
-          get HomeR
-          statusIs 200
-          htmlAnyContain "h1" "a modern framework for blazing fast websites"
-
-          request $ do
-              setMethod "POST"
-              setUrl HomeR
-              addToken
-              fileByLabelExact "Choose a file" "test/Spec.hs" "text/plain" -- talk about self-reference
-              byLabelExact "What's on the file?" "Some Content"
-
-          statusIs 200
-          -- more debugging printBody
-          htmlAllContain ".upload-response" "text/plain"
-          htmlAllContain ".upload-response" "Some Content"
-
-        -- This is a simple example of using a database access in a test.  The
-        -- test will succeed for a fresh scaffolded site with an empty database,
-        -- but will fail on an existing database with a non-empty user table.
-        it "leaves the user table empty" $ do
-          get HomeR
-          statusIs 200
-          users <- runDB $ selectList ([] :: [Filter User]) []
-          assertEq "user table empty" 0 $ length users
+    it "shows lending shortcuts for an authenticated student" $ do
+        user <- createUser "student"
+        authenticateAs user
+        get HomeR
+        statusIs 200
+        htmlAnyContain ".home-actions a" "Explorar catalogo"
+        htmlAnyContain ".home-actions a" "Minhas solicitacoes"
+        htmlAnyContain ".home-actions a" "Publicar equipamento"
+        htmlCount "form" 0

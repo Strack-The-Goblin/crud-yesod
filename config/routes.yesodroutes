@@ -8,7 +8,7 @@
 /robots.txt RobotsR GET
 /api/health HealthR GET
 
-/ HomeR GET POST
+/ HomeR GET
 
 /comments CommentR POST
 

@@ -159,8 +159,10 @@ at migration time, since the old schema did not record them.
 
 The complete workflow is implemented: accounts, ViaCEP lookup, equipment catalog,
 requests, reservations, checkout, return, inspections, maintenance and guarded
-account/equipment deactivation. Legacy scaffold upload/comment examples remain
-available below the equipment-lending introduction on the homepage.
+account/equipment deactivation. The homepage introduces the lending workflow and
+shows account-aware shortcuts. The scaffold tutorial, upload demo and comment
+form are removed from the interface; the legacy comment API/data remain for
+compatibility. The homepage is now GET-only.
 
 ## Accounts and Permissions
 

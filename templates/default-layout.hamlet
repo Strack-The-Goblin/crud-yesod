@@ -3,8 +3,9 @@
 <nav .navbar.navbar-default.navbar-static-top>
     <div .container>
         <div .navbar-header>
+            <a .navbar-brand href=@{HomeR}>Equipamentos entre alunos
             <button type="button" .navbar-toggle.collapsed data-toggle="collapse" data-target="#navbar" aria-expanded="false" aria-controls="navbar">
-                <span class="sr-only">Toggle navigation
+                <span class="sr-only">Abrir menu
                 <span class="icon-bar">
                 <span class="icon-bar">
                 <span class="icon-bar">
@@ -35,13 +36,8 @@
       <div .alert.alert-info #message>#{msg}
 
 
-$if (Just HomeR == mcurrentRoute)
+<main .container.page-content #main-content>
     ^{widget}
-$else
-    <div .container>
-        <div .row>
-            <div .col-md-12>
-                ^{widget}
 
 <!-- Footer -->
 <footer .footer>

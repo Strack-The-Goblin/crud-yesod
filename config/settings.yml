@@ -40,5 +40,5 @@ database:
   database: "_env:YESOD_PGDATABASE:banco"
   poolsize: "_env:YESOD_PGPOOLSIZE:10"
 
-copyright: Insert copyright statement here
+copyright: Emprestimo de equipamentos entre alunos
 #analytics: UA-YOURCODE
