@@ -2,15 +2,25 @@ FROM debian:bookworm-slim AS build
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        build-essential ca-certificates curl git haskell-stack \
+        build-essential ca-certificates curl git \
         libgmp-dev libncurses-dev libpq-dev libtinfo5 zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
+
+RUN curl --fail --location --retry 3 \
+        https://github.com/commercialhaskell/stack/releases/download/v3.11.1/stack-3.11.1-linux-x86_64.tar.gz \
+        --output /tmp/stack.tar.gz \
+    && echo '1fda71e657cd8d355625cc66b61b352699279dfee2664c014a392163bd19a952  /tmp/stack.tar.gz' | sha256sum --check - \
+    && tar -xzf /tmp/stack.tar.gz -C /tmp \
+    && install -m 0755 /tmp/stack-3.11.1-linux-x86_64/stack /usr/local/bin/stack \
+    && rm -rf /tmp/stack.tar.gz /tmp/stack-3.11.1-linux-x86_64 \
+    && stack --version
 
 ENV LANG=C.UTF-8
 WORKDIR /build
 
 COPY stack.yaml stack.yaml.lock package.yaml ./
 COPY app ./app
+COPY test ./test
 COPY src ./src
 COPY config ./config
 COPY templates ./templates

@@ -84,6 +84,10 @@ O [Dockerfile](Dockerfile) compila com o snapshot do Stack em uma etapa separada
 e executa como usuario sem privilegios, sem modo dev nem login dummy.
 A [.dockerignore](.dockerignore) exclui ambiente local, chave de sessao, banco
 de testes e caches. O primeiro build baixa GHC/dependencias e pode ser demorado.
+O build Linux amd64 (Render) usa Stack 3.11.1 oficial, com checksum verificado.
+O Stack 2.7.5 do Debian nao deve ser usado: falha na verificacao das assinaturas
+atuais do Hackage. Os fontes dos testes sao copiados para satisfazer o manifesto,
+mas os testes nao rodam durante o build da imagem e nao exigem banco nessa etapa.
 
 No Render, crie um **Web Service / Docker**, usando a raiz deste repositorio e
 o Dockerfile padrao. Crie o PostgreSQL na mesma regiao e configure no servico:
