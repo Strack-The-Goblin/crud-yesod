@@ -17,6 +17,7 @@ PostgreSQL**, Stack (snapshot LTS 20.26, GHC 9.2.8) e Docker para o Render.
 - Cadastro/login, perfil e endereco de retirada.
 - CRUD de categorias, equipamentos e solicitacoes pendentes.
 - Aprovacao, recusa e cancelamento; bloqueio de reservas sobrepostas.
+- Periodos com seletor nativo de data/hora em UTC-03:00; logout retorna a home.
 - Retirada/devolucao com inspecoes, atrasos e manutencao automatica em caso de dano.
 - Exclusao sem vinculos ou desativacao com historico, sem compromissos ativos.
 - Suporte administrativo, validacao de formularios e transacoes com rollback.

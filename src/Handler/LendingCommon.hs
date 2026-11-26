@@ -55,15 +55,20 @@ displayTime = pack . Time.formatTime Time.defaultTimeLocale "%d/%m/%Y %H:%M (UTC
 
 timestampField :: Field Handler UTCTime
 timestampField = checkMMap (pure . parseTimestamp) timestampInput textField
+    { fieldView = \theId name attrs value required -> [whamlet|
+        <input type=datetime-local id=#{theId} name=#{name} *{attrs} value=#{either id id value} step=60 :required:required>
+    |]
+    }
   where
     parseTimestamp :: Text -> Either Text UTCTime
-    parseTimestamp input = case Time.parseTimeM True Time.defaultTimeLocale "%Y-%m-%d %H:%M"
-            (unpack input) of
+    parseTimestamp input = case
+            Time.parseTimeM True Time.defaultTimeLocale "%Y-%m-%dT%H:%M" (unpack input)
+            <|> Time.parseTimeM True Time.defaultTimeLocale "%Y-%m-%d %H:%M" (unpack input) of
         Nothing -> Left ("Use AAAA-MM-DD HH:MM no fuso UTC-03:00." :: Text)
         Just local -> Right $ Time.localTimeToUTC (Time.minutesToTimeZone (-180)) local
 
 timestampInput :: UTCTime -> Text
-timestampInput = pack . Time.formatTime Time.defaultTimeLocale "%Y-%m-%d %H:%M"
+timestampInput = pack . Time.formatTime Time.defaultTimeLocale "%Y-%m-%dT%H:%M"
     . Time.utcToLocalTime (Time.minutesToTimeZone (-180))
 
 emptyForm :: Form ()

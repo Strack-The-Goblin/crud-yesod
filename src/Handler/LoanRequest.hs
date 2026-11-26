@@ -9,9 +9,9 @@ import Handler.LendingCommon
 
 requestForm :: Maybe LoanRequest -> Form (UTCTime, UTCTime, Text)
 requestForm value = renderDivs $ (,,)
-    <$> areq timestampField (textSettings "Inicio * (AAAA-MM-DD HH:MM, UTC-03:00)" "startsAt")
+    <$> areq timestampField (textSettings "Inicio * (UTC-03:00)" "startsAt")
         (loanRequestStartsAt <$> value)
-    <*> areq timestampField (textSettings "Fim * (AAAA-MM-DD HH:MM, UTC-03:00)" "endsAt")
+    <*> areq timestampField (textSettings "Fim * (UTC-03:00)" "endsAt")
         (loanRequestEndsAt <$> value)
     <*> areq (requiredText 2000) (textSettings "Finalidade *" "purpose") (loanRequestPurpose <$> value)
 

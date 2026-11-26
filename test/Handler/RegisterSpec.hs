@@ -29,13 +29,20 @@ spec = withAppSettings (\settings -> settings { appAuthDummyLogin = False }) $ d
             get ProfileR
             statusIs 200
             htmlAnyContain ".username" "alice"
-            get $ AuthR LogoutR
+            request $ do
+                setUrl $ AuthR LogoutR
+                addRequestHeader ("Referer", "/profile")
             statusIs 200
             request $ do
                 setMethod "POST"
                 setUrl $ AuthR LogoutR
                 addToken
+                addRequestHeader ("Referer", "/profile")
             statusIs 303
+            location <- getLocation
+            assertEq "Logout destination" (Right HomeR) location
+            get HomeR
+            statusIs 200
             get ProfileR
             statusIs 403
 

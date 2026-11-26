@@ -5,7 +5,7 @@ module Handler.LendingSpec (spec) where
 import TestImport
 import qualified Lending as L
 import Handler.LendingCommon (timestampInput)
-import Data.Time (addUTCTime)
+import Data.Time (addUTCTime, UTCTime (..), fromGregorian, secondsToDiffTime)
 import Database.Persist.Sql (toSqlKey, fromSqlKey)
 import qualified Database.Persist as DB
 import Yesod.Core (renderRoute)
@@ -142,6 +142,30 @@ spec = withApp $ describe "Lending pages" $ do
         statusIs 303
         saved <- runDB $ DB.get rid
         liftIO $ saved `shouldBe` Nothing
+
+    it "uses native date-time inputs, converts UTC-03:00 and rejects invalid dates without writes" $ do
+        (_, borrower, eid, _) <- fixture
+        authenticateAs borrower
+        get $ RequestNewR eid
+        htmlCount "input[type=datetime-local]" 2
+        postFields (RequestNewR eid)
+            [("startsAt", "2099-01-02T09:30"), ("endsAt", "2099-01-02T10:30"), ("purpose", "Study")]
+        statusIs 303
+        Entity rid saved <- requireSingle =<< (runDB $ selectList [LoanRequestEquipmentId ==. eid] [])
+        liftIO $ do
+            loanRequestStartsAt saved `shouldBe` UTCTime (fromGregorian 2099 1 2) (secondsToDiffTime 45000)
+            loanRequestEndsAt saved `shouldBe` UTCTime (fromGregorian 2099 1 2) (secondsToDiffTime 48600)
+        get $ RequestEditR rid
+        htmlCount "input[name=startsAt][value=2099-01-02T09:30]" 1
+        postFields (RequestEditR rid)
+            [("startsAt", "2099-02-30T09:30"), ("endsAt", "2099-01-02T10:30"), ("purpose", "Invalid")]
+        statusIs 200
+        persisted <- runDB $ getJust rid
+        liftIO $ persisted `shouldBe` saved
+        get $ RequestEditR rid
+        postFields (RequestEditR rid)
+            [("startsAt", "2099-01-02 09:30"), ("endsAt", "2099-01-02 10:30"), ("purpose", "Legacy")]
+        statusIs 303
 
     it "opens and completes maintenance through the UI and displays an atomic checkout to participants" $ do
         (owner, borrower, eid, now) <- fixture
